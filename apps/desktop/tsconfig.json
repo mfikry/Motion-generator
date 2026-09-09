@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@genc/motion-schema": ["../../packages/motion-schema/src"],
+      "@genc/shared-types": ["../../packages/shared-types/src"],
+      "@renderer/*": ["./src/renderer/*"],
+      "@main/*": ["./src/main/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/motion-schema" },
+    { "path": "../../packages/shared-types" }
+  ]
+}
