@@ -1,4 +1,5 @@
 # Technical Design Document — GEN(C) Motion Generator
+
 **Lanjutan dari PRD v1.0 — Siap dipecah menjadi task eksekusi (mis. untuk Google Antigravity)**
 
 Versi Dokumen: 1.0
@@ -9,15 +10,15 @@ Dokumen Induk: `PRD_GenC_Motion_Generator.md`
 
 ## 1. Rekap Constraint dari PRD
 
-| Constraint | Nilai |
-|---|---|
-| Target platform microstock | Adobe Stock |
-| OS | Windows 10/11 saja |
-| Render fondasi | Library motion open-source (bukan custom engine dari nol) |
-| Audio | Tidak ada di rilis pertama |
-| Mode | Mode Penuh saja (Lite Mode = optimasi performa UI, bukan tier bisnis) |
-| AI Provider | Google Gemini API (multi-key) |
-| Compute render | CPU atau GPU (pilihan user) |
+| Constraint                 | Nilai                                                                 |
+| -------------------------- | --------------------------------------------------------------------- |
+| Target platform microstock | Adobe Stock                                                           |
+| OS                         | Windows 10/11 saja                                                    |
+| Render fondasi             | Library motion open-source (bukan custom engine dari nol)             |
+| Audio                      | Tidak ada di rilis pertama                                            |
+| Mode                       | Mode Penuh saja (Lite Mode = optimasi performa UI, bukan tier bisnis) |
+| AI Provider                | Google Gemini API (multi-key)                                         |
+| Compute render             | CPU atau GPU (pilihan user)                                           |
 
 Dokumen ini menerjemahkan constraint di atas menjadi keputusan implementasi konkret.
 
@@ -29,13 +30,13 @@ Dokumen ini menerjemahkan constraint di atas menjadi keputusan implementasi konk
 
 **Keputusan: Electron** (bukan Tauri).
 
-| Kriteria | Electron | Tauri |
-|---|---|---|
-| Kematangan ekosistem Windows | Sangat matang | Cukup matang |
-| Akses native GPU info (`app.getGPUInfo()`) | Built-in | Perlu plugin/binding manual |
-| Kemudahan render offscreen (headless BrowserWindow untuk final render) | Native didukung | Lebih rumit (WebView berbeda per OS) |
-| Bundle size | Lebih besar (~150-200MB) | Lebih kecil |
-| Alasan pemilihan | Karena render engine berbasis **Chromium WebGL** (lihat 2.3), Electron paling konsisten: proses preview real-time dan proses final-render memakai environment rendering yang **sama persis** (hemat bug "preview vs final render beda hasil") | — |
+| Kriteria                                                               | Electron                                                                                                                                                                                                                                      | Tauri                                |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Kematangan ekosistem Windows                                           | Sangat matang                                                                                                                                                                                                                                 | Cukup matang                         |
+| Akses native GPU info (`app.getGPUInfo()`)                             | Built-in                                                                                                                                                                                                                                      | Perlu plugin/binding manual          |
+| Kemudahan render offscreen (headless BrowserWindow untuk final render) | Native didukung                                                                                                                                                                                                                               | Lebih rumit (WebView berbeda per OS) |
+| Bundle size                                                            | Lebih besar (~150-200MB)                                                                                                                                                                                                                      | Lebih kecil                          |
+| Alasan pemilihan                                                       | Karena render engine berbasis **Chromium WebGL** (lihat 2.3), Electron paling konsisten: proses preview real-time dan proses final-render memakai environment rendering yang **sama persis** (hemat bug "preview vs final render beda hasil") | —                                    |
 
 Bundle size bukan prioritas karena app ini adalah tool produksi profesional (bukan app ringan), dan Windows-only sehingga tidak perlu portabilitas cross-OS Tauri.
 
@@ -50,15 +51,16 @@ Bundle size bukan prioritas karena app ini adalah tool produksi profesional (buk
 
 **Keputusan: PixiJS v8 (WebGL/WebGPU 2D renderer, MIT License)** sebagai fondasi.
 
-| Kandidat | License | Cocok? | Alasan |
-|---|---|---|---|
-| **PixiJS** | MIT | ✅ Dipilih | GPU-accelerated 2D rendering, native jalan di Chromium/Electron tanpa binding tambahan, mendukung filter/particle/tween via plugin, ekosistem animasi besar (gsap-pixi, pixi-spine dst), performa preview real-time bagus |
-| Remotion | Freemium (bukan open-source murni — lisensi berbayar di atas revenue tertentu) | ❌ Ditolak | Berisiko lisensi untuk produk komersial yang hasilnya dijual; tidak sesuai keputusan "library open-source" di PRD |
-| Lottie/dotLottie | MIT (player), tapi authoring butuh After Effects (Bodymovin) | ⚠️ Dipertimbangkan sebagai **format ekspor tambahan** (opsional, roadmap) — bukan engine utama karena tidak cocok untuk generative motion dari AI blueprint |
-| Skia (via canvaskit-wasm) | BSD | ⚠️ Kandidat cadangan | Fidelity tinggi, tapi WASM overhead & integrasi dengan Electron lebih kompleks dibanding PixiJS native WebGL. Disimpan sebagai opsi upgrade fase 2 jika butuh kualitas vektor lebih presisi. |
-| Three.js | MIT | ❌ Tidak dipakai sebagai core | Fokus 3D, overkill untuk motion graphics 2D flat-style seperti contoh UI (bar chart, ikon) |
+| Kandidat                  | License                                                                        | Cocok?                                                                                                                                                      | Alasan                                                                                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PixiJS**                | MIT                                                                            | ✅ Dipilih                                                                                                                                                  | GPU-accelerated 2D rendering, native jalan di Chromium/Electron tanpa binding tambahan, mendukung filter/particle/tween via plugin, ekosistem animasi besar (gsap-pixi, pixi-spine dst), performa preview real-time bagus |
+| Remotion                  | Freemium (bukan open-source murni — lisensi berbayar di atas revenue tertentu) | ❌ Ditolak                                                                                                                                                  | Berisiko lisensi untuk produk komersial yang hasilnya dijual; tidak sesuai keputusan "library open-source" di PRD                                                                                                         |
+| Lottie/dotLottie          | MIT (player), tapi authoring butuh After Effects (Bodymovin)                   | ⚠️ Dipertimbangkan sebagai **format ekspor tambahan** (opsional, roadmap) — bukan engine utama karena tidak cocok untuk generative motion dari AI blueprint |
+| Skia (via canvaskit-wasm) | BSD                                                                            | ⚠️ Kandidat cadangan                                                                                                                                        | Fidelity tinggi, tapi WASM overhead & integrasi dengan Electron lebih kompleks dibanding PixiJS native WebGL. Disimpan sebagai opsi upgrade fase 2 jika butuh kualitas vektor lebih presisi.                              |
+| Three.js                  | MIT                                                                            | ❌ Tidak dipakai sebagai core                                                                                                                               | Fokus 3D, overkill untuk motion graphics 2D flat-style seperti contoh UI (bar chart, ikon)                                                                                                                                |
 
 **Kesimpulan**: PixiJS sebagai render core untuk kedua mode:
+
 1. **Preview Renderer** — jalan langsung di renderer process (kanvas WebGL di UI, real-time, resolusi preview lebih rendah untuk performa).
 2. **Final Render Worker** — jalan di **headless/offscreen BrowserWindow** terpisah (proses Electron tersembunyi) dengan resolusi & FPS penuh sesuai Neural Engine settings, meng-capture tiap frame ke buffer gambar (`page.capturePage()`/`webContents` offscreen rendering API Electron).
 
@@ -67,15 +69,16 @@ Bundle size bukan prioritas karena app ini adalah tool produksi profesional (buk
 **Keputusan: FFmpeg build LGPL v3.0 (default, tanpa `--enable-gpl`)**, dibungkus via `fluent-ffmpeg` + binary `ffmpeg-static` (build LGPL-only, codec bebas paten seperti VP9/AV1 untuk WebM, dan H.264 via **OpenH264 (BSD, Cisco)** khusus MP4 agar tidak menyeret kewajiban GPL).
 
 **Kenapa ini penting (Compliance)**:
+
 - FFmpeg secara default (tanpa flag `--enable-gpl`) berlisensi **LGPL v2.1/v3.0**, yang mengizinkan linking ke aplikasi closed-source komersial selama kewajiban LGPL dipenuhi (sertakan notice lisensi, sediakan source FFmpeg yang dipakai, izinkan relinking versi lain).
 - Kalau build FFmpeg mengaktifkan `--enable-gpl` (untuk codec seperti **x264/x265**), seluruh bundle jadi tunduk **GPL v3.0**, yang **tidak kompatibel dengan distribusi closed-source proprietary**. Ini krusial karena aplikasi kita dijual/didistribusikan closed-source.
 - **Aksi konkret**: gunakan build FFmpeg LGPL-only (tanpa x264/x265 GPL). Untuk H.264 MP4 gunakan **OpenH264** (lisensi BSD, gratis dari Cisco) sebagai encoder alternatif, atau prioritaskan **ProRes 4444** (untuk alpha channel MOV, encoder FFmpeg native tanpa masalah lisensi) dan **VP9/AV1** (untuk WebM dengan alpha, royalty-free) sebagai format utama ekspor alpha channel. MP4 H.264 disediakan sebagai opsi "compatibility export" non-alpha.
 
-| Format Output | Codec | Alpha Channel | Lisensi Aman? |
-|---|---|---|---|
-| `.mov` | ProRes 4444 | ✅ Ya | ✅ (native FFmpeg, tanpa GPL) |
-| `.webm` | VP9 | ✅ Ya | ✅ (royalty-free, LGPL FFmpeg build) |
-| `.mp4` | H.264 (via OpenH264) | ❌ Tidak (H.264 tidak native support alpha) | ✅ (BSD) — dipakai untuk green screen / non-transparent export |
+| Format Output | Codec                | Alpha Channel                               | Lisensi Aman?                                                  |
+| ------------- | -------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| `.mov`        | ProRes 4444          | ✅ Ya                                       | ✅ (native FFmpeg, tanpa GPL)                                  |
+| `.webm`       | VP9                  | ✅ Ya                                       | ✅ (royalty-free, LGPL FFmpeg build)                           |
+| `.mp4`        | H.264 (via OpenH264) | ❌ Tidak (H.264 tidak native support alpha) | ✅ (BSD) — dipakai untuk green screen / non-transparent export |
 
 ### 2.5 AI Integration
 
@@ -187,6 +190,7 @@ Ini adalah "bahasa perantara" antara hasil Gemini API dan Render Engine. Gemini 
 ```
 
 Field kunci:
+
 - `layers[].type`: `shape | path | icon | particle | image-ref` (tipe primitif yang didukung Render Engine — dibatasi tegas agar Gemini tidak "berimajinasi" di luar kapabilitas renderer).
 - `keyframes[].easing`: enum tertutup (mapped langsung ke fungsi easing PixiJS/GSAP: `linear, easeInOutCubic, easeOutBack, spring, bounce`, dst — sesuai opsi "Rules Animations: Simple/High/Expert" dan "Easing Preset" di PRD).
 - `loop.seamless`: dipakai Render Engine untuk validasi frame awal=akhir (fitur "Looping Check" dari PRD 6.1).
@@ -250,12 +254,12 @@ CREATE TABLE api_keys (
 
 Berdasarkan field submission resmi Adobe Stock Contributor, Metadata Generator menghasilkan:
 
-| Field | Batasan Adobe Stock | Sumber Generasi |
-|---|---|---|
-| Title | Maks ±200 karakter, deskriptif | Gemini API (prompt turunan dari blueprint `category` + isi visual) |
-| Keywords | Maks 49 keyword, urutan relevansi menentukan | Gemini API, di-generate dari kategori + elemen visual + gaya warna |
-| Category | Dari daftar kategori Adobe Stock (mis. "Graphic Resources") | Mapping otomatis dari `blueprint.category` ke kategori Adobe Stock terdekat |
-| Release info | N/A (motion graphics generik tidak butuh model/property release) | — |
+| Field        | Batasan Adobe Stock                                              | Sumber Generasi                                                             |
+| ------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Title        | Maks ±200 karakter, deskriptif                                   | Gemini API (prompt turunan dari blueprint `category` + isi visual)          |
+| Keywords     | Maks 49 keyword, urutan relevansi menentukan                     | Gemini API, di-generate dari kategori + elemen visual + gaya warna          |
+| Category     | Dari daftar kategori Adobe Stock (mis. "Graphic Resources")      | Mapping otomatis dari `blueprint.category` ke kategori Adobe Stock terdekat |
+| Release info | N/A (motion graphics generik tidak butuh model/property release) | —                                                                           |
 
 Output disimpan sebagai `.csv` mengikuti format bulk-upload metadata Adobe Stock Contributor, satu baris per file video, agar user tinggal import saat submit.
 
@@ -312,21 +316,21 @@ genc-motion-generator/
 
 ## 10. Epics Siap Eksekusi (untuk dipecah ke Agent/Antigravity)
 
-| # | Epic | Ringkas Acceptance Criteria |
-|---|---|---|
-| E1 | **Project Scaffolding** | Electron + React + TS + Tailwind berjalan, window dark-theme kosong sesuai layout referensi (3 kolom: AI Architect / Preview / Render Settings), build & run di Windows sukses |
-| E2 | **API Key Management** | User bisa tambah/hapus API key Gemini, key tersimpan terenkripsi (safeStorage), validasi via test call, status indikator per key, rotasi otomatis saat rate-limited |
-| E3 | **Motion Blueprint Schema & Validator** | Package `motion-schema` selesai dengan validasi Zod, unit test untuk kasus valid/invalid |
-| E4 | **AI Architect — Text Mode** | User input prompt teks → panggil Gemini API dengan schema JSON → blueprint valid tersimpan ke DB → dikirim ke UI |
-| E5 | **AI Architect — Image Mode** | Upload hingga 5 gambar → dikirim sebagai referensi visual ke Gemini API → blueprint dihasilkan sesuai gaya gambar |
-| E6 | **PixiJS Preview Renderer** | Blueprint dari E4/E5 di-render real-time di kanvas, kontrol play/pause/scrub/reset berfungsi |
-| E7 | **Render Settings Panel** | Semua toggle (No Text, Background Animations, Green Screen, Intro/Outro, Rules Animations, Easing) memengaruhi hasil render sesuai definisi Bagian 4 |
-| E8 | **Final Render Pipeline (Offscreen + FFmpeg)** | Render job dari blueprint menghasilkan file video sesuai resolusi/FPS/format/bitrate, mendukung alpha channel (MOV ProRes4444, WebM VP9), fallback CPU/GPU berfungsi |
-| E9 | **Render Batch Queue UI** | Antrian job tampil real-time (queued/rendering/done/failed), log status seperti referensi UI |
-| E10 | **Metadata Generator (Adobe Stock format)** | Setiap hasil render otomatis menghasilkan judul/keyword/kategori, export CSV format bulk-upload Adobe Stock |
-| E11 | **Project Save/Load (T1/T2 multi-tab)** | User bisa punya beberapa project aktif, switch tanpa kehilangan state, simpan sebagai file `.gencproj` |
-| E12 | **Similarity Checker (opsional MVP+)** | Bandingkan hasil dalam 1 batch, beri skor kemiripan visual |
-| E13 | **Packaging & Installer Windows** | Build installer NSIS via electron-builder, code signing (jika sertifikat tersedia), auto-update check |
+| #   | Epic                                           | Ringkas Acceptance Criteria                                                                                                                                                    |
+| --- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| E1  | **Project Scaffolding**                        | Electron + React + TS + Tailwind berjalan, window dark-theme kosong sesuai layout referensi (3 kolom: AI Architect / Preview / Render Settings), build & run di Windows sukses |
+| E2  | **API Key Management**                         | User bisa tambah/hapus API key Gemini, key tersimpan terenkripsi (safeStorage), validasi via test call, status indikator per key, rotasi otomatis saat rate-limited            |
+| E3  | **Motion Blueprint Schema & Validator**        | Package `motion-schema` selesai dengan validasi Zod, unit test untuk kasus valid/invalid                                                                                       |
+| E4  | **AI Architect — Text Mode**                   | User input prompt teks → panggil Gemini API dengan schema JSON → blueprint valid tersimpan ke DB → dikirim ke UI                                                               |
+| E5  | **AI Architect — Image Mode**                  | Upload hingga 5 gambar → dikirim sebagai referensi visual ke Gemini API → blueprint dihasilkan sesuai gaya gambar                                                              |
+| E6  | **PixiJS Preview Renderer**                    | Blueprint dari E4/E5 di-render real-time di kanvas, kontrol play/pause/scrub/reset berfungsi                                                                                   |
+| E7  | **Render Settings Panel**                      | Semua toggle (No Text, Background Animations, Green Screen, Intro/Outro, Rules Animations, Easing) memengaruhi hasil render sesuai definisi Bagian 4                           |
+| E8  | **Final Render Pipeline (Offscreen + FFmpeg)** | Render job dari blueprint menghasilkan file video sesuai resolusi/FPS/format/bitrate, mendukung alpha channel (MOV ProRes4444, WebM VP9), fallback CPU/GPU berfungsi           |
+| E9  | **Render Batch Queue UI**                      | Antrian job tampil real-time (queued/rendering/done/failed), log status seperti referensi UI                                                                                   |
+| E10 | **Metadata Generator (Adobe Stock format)**    | Setiap hasil render otomatis menghasilkan judul/keyword/kategori, export CSV format bulk-upload Adobe Stock                                                                    |
+| E11 | **Project Save/Load (T1/T2 multi-tab)**        | User bisa punya beberapa project aktif, switch tanpa kehilangan state, simpan sebagai file `.gencproj`                                                                         |
+| E12 | **Similarity Checker (opsional MVP+)**         | Bandingkan hasil dalam 1 batch, beri skor kemiripan visual                                                                                                                     |
+| E13 | **Packaging & Installer Windows**              | Build installer NSIS via electron-builder, code signing (jika sertifikat tersedia), auto-update check                                                                          |
 
 Setiap epic di atas sudah cukup kecil & spesifik untuk diberikan satu-per-satu ke agent coding (mis. Antigravity) sebagai task terpisah, direview hasilnya, baru lanjut ke epic berikutnya — sesuai rekomendasi tahap eksekusi bertahap.
 
@@ -340,4 +344,4 @@ Setiap epic di atas sudah cukup kecil & spesifik untuk diberikan satu-per-satu k
 
 ---
 
-*Dokumen ini siap dipakai sebagai acuan teknis. Rekomendasi selanjutnya: mulai dari Epic E1–E3 (fondasi) sebelum masuk ke fitur AI/render.*
+_Dokumen ini siap dipakai sebagai acuan teknis. Rekomendasi selanjutnya: mulai dari Epic E1–E3 (fondasi) sebelum masuk ke fitur AI/render._

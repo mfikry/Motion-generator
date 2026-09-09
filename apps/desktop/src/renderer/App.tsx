@@ -3,6 +3,7 @@ import { AIArchitectPanel } from './components/AIArchitectPanel';
 import { PreviewSuite } from './components/PreviewSuite';
 import { NeuralEngine } from './components/NeuralEngine';
 import { RenderSettingsPanel } from './components/RenderSettingsPanel';
+import { ApiKeyModal } from './components/ApiKeyModal';
 
 /**
  * App — Main layout component.
@@ -41,6 +42,9 @@ export function App() {
           <RenderSettingsPanel />
         </div>
       </div>
+
+      {/* API Key Management Modal */}
+      <ApiKeyModal />
     </div>
   );
 }

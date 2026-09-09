@@ -7,9 +7,9 @@
 
 @theme {
   /* ── Core Palette ── */
-  --color-bg-base: #0D0B1A;
-  --color-bg-surface: #13102A;
-  --color-bg-elevated: #1A1635;
+  --color-bg-base: #0d0b1a;
+  --color-bg-surface: #13102a;
+  --color-bg-elevated: #1a1635;
   --color-bg-card: rgba(20, 15, 45, 0.85);
   --color-bg-card-hover: rgba(28, 22, 55, 0.9);
 
@@ -19,20 +19,20 @@
   --color-border-glow: rgba(139, 92, 246, 0.5);
 
   /* ── Section Accent Colors ── */
-  --color-accent-ai: #F5A623;
+  --color-accent-ai: #f5a623;
   --color-accent-ai-dim: rgba(245, 166, 35, 0.15);
-  --color-accent-preview: #00D4FF;
+  --color-accent-preview: #00d4ff;
   --color-accent-preview-dim: rgba(0, 212, 255, 0.15);
-  --color-accent-render: #A855F7;
+  --color-accent-render: #a855f7;
   --color-accent-render-dim: rgba(168, 85, 247, 0.15);
-  --color-accent-green: #22C55E;
+  --color-accent-green: #22c55e;
   --color-accent-green-dim: rgba(34, 197, 94, 0.15);
 
   /* ── Text ── */
-  --color-text-primary: #F1F0F5;
-  --color-text-secondary: #9CA3AF;
-  --color-text-muted: #6B7280;
-  --color-text-accent: #C4B5FD;
+  --color-text-primary: #f1f0f5;
+  --color-text-secondary: #9ca3af;
+  --color-text-muted: #6b7280;
+  --color-text-accent: #c4b5fd;
 
   /* ── Neon Glow Colors (for box-shadows & borders) ── */
   --color-glow-purple: rgba(139, 92, 246, 0.4);
@@ -41,12 +41,12 @@
   --color-glow-green: rgba(34, 197, 94, 0.4);
 
   /* ── Button Gradients ── */
-  --color-btn-primary-from: #7C3AED;
-  --color-btn-primary-to: #6D28D9;
-  --color-btn-generate-from: #F5A623;
-  --color-btn-generate-to: #D97706;
-  --color-btn-render-from: #06B6D4;
-  --color-btn-render-to: #0891B2;
+  --color-btn-primary-from: #7c3aed;
+  --color-btn-primary-to: #6d28d9;
+  --color-btn-generate-from: #f5a623;
+  --color-btn-generate-to: #d97706;
+  --color-btn-render-from: #06b6d4;
+  --color-btn-render-to: #0891b2;
 
   /* ── Typography ── */
   --font-sans: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
@@ -55,7 +55,9 @@
 }
 
 /* ── Base Styles ── */
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -92,7 +94,9 @@ html, body, #root {
   backdrop-filter: blur(12px);
   border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .glass-card:hover {
   border-color: var(--color-border-accent);
@@ -100,15 +104,21 @@ html, body, #root {
 
 /* ── Section-specific card glows ── */
 .glow-ai {
-  box-shadow: 0 0 20px var(--color-glow-gold), inset 0 1px 0 rgba(245, 166, 35, 0.1);
+  box-shadow:
+    0 0 20px var(--color-glow-gold),
+    inset 0 1px 0 rgba(245, 166, 35, 0.1);
   border-color: rgba(245, 166, 35, 0.25);
 }
 .glow-preview {
-  box-shadow: 0 0 20px var(--color-glow-cyan), inset 0 1px 0 rgba(0, 212, 255, 0.1);
+  box-shadow:
+    0 0 20px var(--color-glow-cyan),
+    inset 0 1px 0 rgba(0, 212, 255, 0.1);
   border-color: rgba(0, 212, 255, 0.25);
 }
 .glow-render {
-  box-shadow: 0 0 20px var(--color-glow-purple), inset 0 1px 0 rgba(139, 92, 246, 0.1);
+  box-shadow:
+    0 0 20px var(--color-glow-purple),
+    inset 0 1px 0 rgba(139, 92, 246, 0.1);
   border-color: rgba(139, 92, 246, 0.25);
 }
 
@@ -156,13 +166,13 @@ html, body, #root {
   width: 44px;
   height: 22px;
   border-radius: 11px;
-  background: #2D2B42;
+  background: #2d2b42;
   cursor: pointer;
   transition: background-color 0.25s ease;
   border: 1px solid rgba(139, 92, 246, 0.2);
 }
 .toggle-switch.active {
-  background: linear-gradient(135deg, #22C55E, #16A34A);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
   border-color: rgba(34, 197, 94, 0.4);
 }
 .toggle-switch::after {
@@ -175,7 +185,7 @@ html, body, #root {
   border-radius: 50%;
   background: white;
   transition: transform 0.25s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 .toggle-switch.active::after {
   transform: translateX(22px);
@@ -320,12 +330,23 @@ html, body, #root {
 
 /* ── Animations ── */
 @keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;

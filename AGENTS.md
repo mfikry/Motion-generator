@@ -58,6 +58,7 @@ Instruksi ini berlaku untuk semua agent coding (mis. Google Antigravity) yang be
 ## 5. Definisi "Selesai" (Definition of Done) per Task
 
 Sebuah task/epic dianggap selesai jika:
+
 - [ ] Kode berhasil di-build tanpa error/warning kritis
 - [ ] Fitur bisa dijalankan & diuji manual sesuai acceptance criteria di Tech Design
 - [ ] Tidak melanggar batasan di Bagian 2 dokumen ini
@@ -66,4 +67,4 @@ Sebuah task/epic dianggap selesai jika:
 
 ---
 
-*Jika ada konflik antara file ini dan Tech Design/PRD, prioritaskan AGENTS.md untuk hal teknis-operasional (batasan lisensi, cara kerja), dan Tech Design untuk detail arsitektur/skema.*
+_Jika ada konflik antara file ini dan Tech Design/PRD, prioritaskan AGENTS.md untuk hal teknis-operasional (batasan lisensi, cara kerja), dan Tech Design untuk detail arsitektur/skema._

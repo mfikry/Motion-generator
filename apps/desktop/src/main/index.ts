@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
+import { initDatabase, closeDatabase } from './storage/database';
+import { registerApiKeyHandlers } from './ipc/api-key-handlers';
 
 const isDev = !app.isPackaged;
 
@@ -46,10 +48,17 @@ ipcMain.handle('app:get-version', () => {
 
 // App lifecycle
 app.whenReady().then(() => {
+  // Initialize database
+  initDatabase();
+
+  // Register IPC handlers for API key management
+  registerApiKeyHandlers();
+
   createWindow();
 });
 
 app.on('window-all-closed', () => {
+  closeDatabase();
   app.quit();
 });
 

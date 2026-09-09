@@ -8,7 +8,9 @@ export function NeuralEngine() {
     <div className="flex flex-col gap-2.5 px-4 py-3 border-t border-[var(--color-border-subtle)]">
       {/* Section Title */}
       <div className="flex items-center gap-2">
-        <span className="section-header text-[var(--color-text-secondary)] text-[11px]">Neural Engine</span>
+        <span className="section-header text-[var(--color-text-secondary)] text-[11px]">
+          Neural Engine
+        </span>
       </div>
 
       {/* Row 1: Resolution, FPS, Format */}
@@ -42,13 +44,17 @@ export function NeuralEngine() {
         <button className="chip text-[10px] py-1 px-3">GPU</button>
         <div className="flex items-center gap-1.5 ml-1">
           <span className="w-2 h-2 rounded-full bg-[var(--color-accent-green)] inline-block animate-pulse-glow" />
-          <span className="text-[10px] text-[var(--color-accent-green)] font-semibold">GPU (NVIDIA RTX 3050)</span>
+          <span className="text-[10px] text-[var(--color-accent-green)] font-semibold">
+            GPU (NVIDIA RTX 3050)
+          </span>
         </div>
       </div>
 
       {/* Row 3: Bitrate */}
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">Bitrate</span>
+        <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
+          Bitrate
+        </span>
         <select className="select-dark text-[11px] py-1 min-w-[60px]">
           <option>CBR</option>
           <option>VBR</option>
@@ -66,14 +72,14 @@ export function NeuralEngine() {
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <span className="text-[14px]">📁</span>
-          <span className="text-[11px] text-[var(--color-accent-ai)] truncate font-mono">G:\CEMAS...</span>
+          <span className="text-[11px] text-[var(--color-accent-ai)] truncate font-mono">
+            G:\CEMAS...
+          </span>
         </div>
         <button className="btn-neon text-[10px] py-1.5 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)]">
           + Add Batch
         </button>
-        <button className="btn-neon btn-render py-1.5 px-6 text-[11px]">
-          Render
-        </button>
+        <button className="btn-neon btn-render py-1.5 px-6 text-[11px]">Render</button>
       </div>
     </div>
   );

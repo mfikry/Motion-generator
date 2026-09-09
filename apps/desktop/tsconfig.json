@@ -2,7 +2,6 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
@@ -12,9 +11,5 @@
       "@main/*": ["./src/main/*"]
     }
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../../packages/motion-schema" },
-    { "path": "../../packages/shared-types" }
-  ]
+  "include": ["src"]
 }

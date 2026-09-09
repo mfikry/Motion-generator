@@ -1,17 +1,41 @@
+import { useEffect } from 'react';
+import { useApiKeyStore } from '../store/apiKeyStore';
+
 /**
- * TopBar — App branding, update check, tour, lite mode, theme toggle.
- * Visual shell only — no functional logic.
+ * TopBar — App branding, API key status counter, update check, tour, lite mode, theme toggle.
  */
 export function TopBar() {
+  const { poolStatus, openModal, loadKeys } = useApiKeyStore();
+
+  useEffect(() => {
+    loadKeys();
+  }, [loadKeys]);
+
+  const badgeClass =
+    poolStatus.total === 0
+      ? 'badge badge-gold'
+      : poolStatus.valid > 0
+        ? 'badge badge-green'
+        : 'badge bg-red-950/60 text-red-400 border border-red-500/30';
+
   return (
     <header className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]">
       {/* Left: API Key Status */}
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={openModal}
+          title="Kelola Gemini API Keys"
+        >
           <span className="badge badge-gold">GEMINI API KEYS</span>
-          <span className="badge badge-green">5/5</span>
+          <span className={badgeClass}>
+            {poolStatus.valid}/{poolStatus.total}
+          </span>
         </div>
-        <button className="flex items-center gap-1.5 text-[11px] text-[var(--color-accent-ai)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer bg-transparent border-none font-semibold">
+        <button
+          onClick={openModal}
+          className="flex items-center gap-1.5 text-[11px] text-[var(--color-accent-ai)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer bg-transparent border-none font-semibold text-left p-0"
+        >
           <span>🔑</span>
           <span>MASUKAN API</span>
         </button>
@@ -60,7 +84,9 @@ export function TopBar() {
       {/* Right: Models & Thinking Level */}
       <div className="flex flex-col gap-1.5 items-end min-w-[200px]">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">Models</span>
+          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
+            Models
+          </span>
           <select className="select-dark text-[11px] py-1 px-2 min-w-[120px]">
             <option>Gemi 3.6F</option>
           </select>
@@ -69,7 +95,9 @@ export function TopBar() {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">Thinking Level</span>
+          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
+            Thinking Level
+          </span>
           <div className="flex gap-1">
             <button className="chip text-[10px] py-0.5 px-2.5">Low</button>
             <button className="chip text-[10px] py-0.5 px-2.5">Medium</button>

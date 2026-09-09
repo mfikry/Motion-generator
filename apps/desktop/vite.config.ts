@@ -19,7 +19,7 @@ export default defineConfig({
           build: {
             outDir: path.resolve(desktopRoot, 'dist/main'),
             rollupOptions: {
-              external: ['electron'],
+              external: ['electron', 'better-sqlite3', 'bufferutil', 'utf-8-validate'],
             },
           },
         },

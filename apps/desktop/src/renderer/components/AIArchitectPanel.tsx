@@ -9,7 +9,9 @@ export function AIArchitectPanel() {
       {/* Section Header */}
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[var(--color-accent-ai)] text-base">⚡</span>
-        <h2 className="section-header text-[var(--color-text-primary)] m-0 text-sm">AI ARCHITECT</h2>
+        <h2 className="section-header text-[var(--color-text-primary)] m-0 text-sm">
+          AI ARCHITECT
+        </h2>
       </div>
 
       {/* Text / Image Mode Tabs */}
@@ -45,15 +47,16 @@ export function AIArchitectPanel() {
 
       {/* Generate Count */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Generate:</span>
-        <span className="text-[11px] text-[var(--color-accent-ai)] font-semibold">Total: 2 Tasks</span>
+        <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">
+          Generate:
+        </span>
+        <span className="text-[11px] text-[var(--color-accent-ai)] font-semibold">
+          Total: 2 Tasks
+        </span>
       </div>
       <div className="flex gap-1.5">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            className={`num-select ${n === 2 ? 'active' : ''}`}
-          >
+          <button key={n} className={`num-select ${n === 2 ? 'active' : ''}`}>
             {n}
           </button>
         ))}
@@ -61,13 +64,12 @@ export function AIArchitectPanel() {
 
       {/* Batch Size */}
       <div className="flex items-center justify-between mt-1">
-        <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Batch Size:</span>
+        <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">
+          Batch Size:
+        </span>
         <div className="flex gap-1.5">
           {[1, 5].map((n) => (
-            <button
-              key={n}
-              className={`num-select ${n === 5 ? 'active' : ''}`}
-            >
+            <button key={n} className={`num-select ${n === 5 ? 'active' : ''}`}>
               {n}
             </button>
           ))}

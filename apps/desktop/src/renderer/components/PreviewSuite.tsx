@@ -38,13 +38,19 @@ export function PreviewSuite() {
       <div className="flex items-center gap-3 px-4 py-2.5">
         {/* Time Display */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">Time (s)</span>
-          <span className="text-base font-bold text-[var(--color-text-primary)] font-[var(--font-mono)]">15</span>
+          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
+            Time (s)
+          </span>
+          <span className="text-base font-bold text-[var(--color-text-primary)] font-[var(--font-mono)]">
+            15
+          </span>
         </div>
 
         {/* Play Button */}
         <button className="w-10 h-10 rounded-full border-2 border-[var(--color-accent-ai)] bg-transparent flex items-center justify-center cursor-pointer hover:bg-[var(--color-accent-ai-dim)] transition-colors group">
-          <span className="text-[var(--color-accent-ai)] text-lg group-hover:scale-110 transition-transform">▶</span>
+          <span className="text-[var(--color-accent-ai)] text-lg group-hover:scale-110 transition-transform">
+            ▶
+          </span>
         </button>
 
         {/* Reset */}
