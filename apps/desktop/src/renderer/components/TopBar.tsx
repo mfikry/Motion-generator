@@ -1,11 +1,20 @@
 import { useEffect } from 'react';
 import { useApiKeyStore } from '../store/apiKeyStore';
+import { useGenerationStore } from '../store/generationStore';
 
 /**
  * TopBar — App branding, API key status counter, update check, tour, lite mode, theme toggle.
  */
 export function TopBar() {
   const { poolStatus, openModal, loadKeys } = useApiKeyStore();
+  const {
+    selectedModel,
+    customModel,
+    thinkingLevel,
+    setSelectedModel,
+    setCustomModel,
+    setThinkingLevel,
+  } = useGenerationStore();
 
   useEffect(() => {
     loadKeys();
@@ -87,21 +96,56 @@ export function TopBar() {
           <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
             Models
           </span>
-          <select className="select-dark text-[11px] py-1 px-2 min-w-[120px]">
-            <option>Gemi 3.6F</option>
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="select-dark text-[11px] py-1 px-2 min-w-[110px]"
+          >
+            <option value="Gemi 3.6F">Gemi 3.6F</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="Custom">Custom</option>
           </select>
-          <span className="text-[10px] text-[var(--color-text-accent)] cursor-pointer hover:text-[var(--color-text-primary)] transition-colors font-semibold uppercase">
-            Custom
-          </span>
+          {selectedModel === 'Custom' ? (
+            <input
+              type="text"
+              placeholder="e.g. gemini-2.5-pro"
+              value={customModel}
+              onChange={(e) => setCustomModel(e.target.value)}
+              className="input-dark text-[11px] py-0.5 px-1.5 w-28"
+            />
+          ) : (
+            <button
+              onClick={() => setSelectedModel('Custom')}
+              className="text-[10px] text-[var(--color-text-accent)] cursor-pointer hover:text-[var(--color-text-primary)] transition-colors font-semibold uppercase bg-transparent border-none p-0"
+            >
+              Custom
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
             Thinking Level
           </span>
           <div className="flex gap-1">
-            <button className="chip text-[10px] py-0.5 px-2.5">Low</button>
-            <button className="chip text-[10px] py-0.5 px-2.5">Medium</button>
-            <button className="chip active text-[10px] py-0.5 px-2.5">High</button>
+            <button
+              onClick={() => setThinkingLevel('low')}
+              className={`chip text-[10px] py-0.5 px-2.5 ${thinkingLevel === 'low' ? 'active' : ''}`}
+            >
+              Low
+            </button>
+            <button
+              onClick={() => setThinkingLevel('medium')}
+              className={`chip text-[10px] py-0.5 px-2.5 ${thinkingLevel === 'medium' ? 'active' : ''}`}
+            >
+              Medium
+            </button>
+            <button
+              onClick={() => setThinkingLevel('high')}
+              className={`chip text-[10px] py-0.5 px-2.5 ${thinkingLevel === 'high' ? 'active' : ''}`}
+            >
+              High
+            </button>
           </div>
         </div>
       </div>

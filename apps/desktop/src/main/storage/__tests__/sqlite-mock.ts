@@ -6,18 +6,39 @@ interface ApiKeyRecord {
   last_checked_at: string | null;
 }
 
+interface GenerationDbRecord {
+  id: string;
+  project_id: string | null;
+  prompt_text: string;
+  reference_images: string | null;
+  model_used: string;
+  thinking_level: string;
+  blueprint_json: string;
+  token_usage: number | null;
+  created_at: string;
+}
+
+interface MockDbTables {
+  apiKeys: ApiKeyRecord[];
+  generations: GenerationDbRecord[];
+}
+
 // In-memory store that survives re-instantiations if the path is the same,
 // simulating persistent SQLite files on disk!
-const tablesByPath = new Map<string, ApiKeyRecord[]>();
+const tablesByPath = new Map<string, MockDbTables>();
+
+function getOrCreateTables(dbPath: string): MockDbTables {
+  let tables = tablesByPath.get(dbPath);
+  if (!tables) {
+    tables = { apiKeys: [], generations: [] };
+    tablesByPath.set(dbPath, tables);
+  }
+  return tables;
+}
 
 export function createBetterSqliteMock() {
   return function MockDatabase(dbPath: string) {
-    if (!tablesByPath.has(dbPath)) {
-      tablesByPath.set(dbPath, []);
-    }
-
-    const getRows = () => tablesByPath.get(dbPath) ?? [];
-    const setRows = (rows: ApiKeyRecord[]) => tablesByPath.set(dbPath, rows);
+    const tables = getOrCreateTables(dbPath);
 
     return {
       pragma: () => {},
@@ -26,6 +47,7 @@ export function createBetterSqliteMock() {
       prepare: (sql: string) => {
         const cleanSql = sql.replace(/\s+/g, ' ').trim();
 
+        // --- api_keys table ---
         if (cleanSql.startsWith('INSERT INTO api_keys')) {
           return {
             run: (...params: unknown[]) => {
@@ -36,15 +58,13 @@ export function createBetterSqliteMock() {
                 string,
                 string,
               ];
-              const rows = getRows();
-              rows.push({
+              tables.apiKeys.push({
                 id,
                 label,
                 safe_storage_ref: safeStorageRef,
                 status,
                 last_checked_at: lastCheckedAt,
               });
-              setRows(rows);
               return { changes: 1 };
             },
           };
@@ -52,23 +72,14 @@ export function createBetterSqliteMock() {
 
         if (cleanSql.startsWith('SELECT id, label, status, last_checked_at FROM api_keys')) {
           return {
-            all: () => getRows().map((r) => ({ ...r })),
+            all: () => tables.apiKeys.map((r) => ({ ...r })),
           };
         }
 
-        if (cleanSql.startsWith('SELECT safe_storage_ref FROM api_keys WHERE id = ?')) {
+        if (cleanSql.startsWith('SELECT') && cleanSql.includes('FROM api_keys WHERE id = ?')) {
           return {
             get: (id: string) => {
-              const found = getRows().find((r) => r.id === id);
-              return found ? { safe_storage_ref: found.safe_storage_ref } : undefined;
-            },
-          };
-        }
-
-        if (cleanSql.startsWith('SELECT * FROM api_keys WHERE id = ?')) {
-          return {
-            get: (id: string) => {
-              const found = getRows().find((r) => r.id === id);
+              const found = tables.apiKeys.find((r) => r.id === id);
               return found ? { ...found } : undefined;
             },
           };
@@ -79,8 +90,7 @@ export function createBetterSqliteMock() {
         ) {
           return {
             run: (status: string, lastCheckedAt: string, id: string) => {
-              const rows = getRows();
-              const target = rows.find((r) => r.id === id);
+              const target = tables.apiKeys.find((r) => r.id === id);
               if (target) {
                 target.status = status;
                 target.last_checked_at = lastCheckedAt;
@@ -94,11 +104,77 @@ export function createBetterSqliteMock() {
         if (cleanSql.startsWith('DELETE FROM api_keys WHERE id = ?')) {
           return {
             run: (id: string) => {
-              const rows = getRows();
-              const initialLen = rows.length;
-              const filtered = rows.filter((r) => r.id !== id);
-              setRows(filtered);
-              return { changes: initialLen - filtered.length };
+              const initialLen = tables.apiKeys.length;
+              tables.apiKeys = tables.apiKeys.filter((r) => r.id !== id);
+              return { changes: initialLen - tables.apiKeys.length };
+            },
+          };
+        }
+
+        // --- generations table ---
+        if (cleanSql.startsWith('INSERT INTO generations')) {
+          return {
+            run: (...params: unknown[]) => {
+              const [
+                id,
+                projectId,
+                promptText,
+                referenceImages,
+                modelUsed,
+                thinkingLevel,
+                blueprintJson,
+                tokenUsage,
+                createdAt,
+              ] = params as [
+                string,
+                string | null,
+                string,
+                string | null,
+                string,
+                string,
+                string,
+                number | null,
+                string,
+              ];
+              tables.generations.push({
+                id,
+                project_id: projectId,
+                prompt_text: promptText,
+                reference_images: referenceImages,
+                model_used: modelUsed,
+                thinking_level: thinkingLevel,
+                blueprint_json: blueprintJson,
+                token_usage: tokenUsage,
+                created_at: createdAt,
+              });
+              return { changes: 1 };
+            },
+          };
+        }
+
+        if (
+          cleanSql.startsWith('SELECT id, project_id, prompt_text') &&
+          cleanSql.includes('FROM generations') &&
+          cleanSql.includes('ORDER BY created_at DESC')
+        ) {
+          return {
+            all: (limit: number = 20) => {
+              const sorted = [...tables.generations].sort((a, b) =>
+                b.created_at.localeCompare(a.created_at),
+              );
+              return sorted.slice(0, limit).map((r) => ({ ...r }));
+            },
+          };
+        }
+
+        if (
+          cleanSql.startsWith('SELECT id, project_id, prompt_text') &&
+          cleanSql.includes('FROM generations WHERE id = ?')
+        ) {
+          return {
+            get: (id: string) => {
+              const found = tables.generations.find((r) => r.id === id);
+              return found ? { ...found } : undefined;
             },
           };
         }

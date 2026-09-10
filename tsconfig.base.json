@@ -18,7 +18,12 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": false,
     "noImplicitReturns": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "baseUrl": ".",
+    "paths": {
+      "@genc/motion-schema": ["./packages/motion-schema/src"],
+      "@genc/shared-types": ["./packages/shared-types/src"]
+    }
   },
   "exclude": ["node_modules", "dist", "out"]
 }

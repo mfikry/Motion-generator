@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { initDatabase, closeDatabase } from './storage/database';
 import { registerApiKeyHandlers } from './ipc/api-key-handlers';
+import { registerAiHandlers } from './ipc/ai-handlers';
 
 const isDev = !app.isPackaged;
 
@@ -51,8 +52,9 @@ app.whenReady().then(() => {
   // Initialize database
   initDatabase();
 
-  // Register IPC handlers for API key management
+  // Register IPC handlers
   registerApiKeyHandlers();
+  registerAiHandlers();
 
   createWindow();
 });

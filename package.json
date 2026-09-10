@@ -11,6 +11,7 @@
     "dev": "npm run dev --workspace=apps/desktop",
     "build": "npm run build --workspace=apps/desktop",
     "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,css,md}\""

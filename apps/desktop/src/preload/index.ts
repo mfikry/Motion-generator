@@ -24,6 +24,11 @@ const electronAPI: ElectronAPI = {
   validateAllApiKeys: () => ipcRenderer.invoke('apiKey:validate-all'),
 
   getApiKeyPoolStatus: () => ipcRenderer.invoke('apiKey:pool-status'),
+
+  // AI Architect Generation
+  generateText: (request) => ipcRenderer.invoke('ai:generate-text', request),
+
+  getGenerations: (limit) => ipcRenderer.invoke('ai:get-generations', { limit }),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

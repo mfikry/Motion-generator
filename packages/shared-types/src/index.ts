@@ -4,6 +4,8 @@
  * Shared TypeScript type definitions used across main, renderer, and packages.
  */
 
+import type { MotionBlueprint } from '@genc/motion-schema';
+
 /** IPC Channel names — single source of truth for main↔renderer communication */
 export const IPC_CHANNELS = {
   GET_APP_VERSION: 'app:get-version',
@@ -14,6 +16,9 @@ export const IPC_CHANNELS = {
   API_KEY_VALIDATE: 'apiKey:validate',
   API_KEY_VALIDATE_ALL: 'apiKey:validate-all',
   API_KEY_POOL_STATUS: 'apiKey:pool-status',
+  // AI Architect Generation
+  AI_GENERATE_TEXT: 'ai:generate-text',
+  AI_GET_GENERATIONS: 'ai:get-generations',
 } as const;
 
 export type IpcChannelName = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -78,6 +83,50 @@ export type EasingPreset = 'off' | 'natural' | 'strong';
 /** Background color mode */
 export type ColorsBgMode = 'solid' | 'gradient' | 'pastel';
 
+/** Render settings applied to generation */
+export interface GenerateTextSettings {
+  durationSec?: number;
+  noText?: boolean;
+  rulesLevel?: RulesAnimationLevel;
+  seamless?: boolean;
+  greenScreen?: boolean;
+  backgroundColor?: string;
+}
+
+/** Request payload for text mode generation */
+export interface GenerateTextRequest {
+  prompt: string;
+  model?: string;
+  thinkingLevel?: ThinkingLevel;
+  variations?: number; // 1-5
+  batchSize?: number; // 1-5
+  settings?: GenerateTextSettings;
+}
+
+/** Result returned from text mode generation */
+export interface GenerateTextResult {
+  success: boolean;
+  blueprints: MotionBlueprint[];
+  totalTasks: number;
+  completedTasks: number;
+  error?: string;
+  retriesUsed?: number;
+  modelUsed?: string;
+}
+
+/** Row shape from SQLite generations table */
+export interface GenerationRecord {
+  id: string;
+  projectId: string | null;
+  promptText: string;
+  referenceImages: string | null;
+  modelUsed: string;
+  thinkingLevel: string;
+  blueprintJson: string;
+  tokenUsage: number | null;
+  createdAt: string;
+}
+
 /** Electron API exposed to renderer via contextBridge */
 export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
@@ -88,6 +137,9 @@ export interface ElectronAPI {
   validateApiKey: (id: string) => Promise<ApiKeyValidateResult>;
   validateAllApiKeys: () => Promise<ApiKeyMetadata[]>;
   getApiKeyPoolStatus: () => Promise<ApiKeyPoolStatus>;
+  // AI Architect Generation
+  generateText: (request: GenerateTextRequest) => Promise<GenerateTextResult>;
+  getGenerations: (limit?: number) => Promise<GenerationRecord[]>;
 }
 
 declare global {
@@ -95,3 +147,22 @@ declare global {
     electronAPI: ElectronAPI;
   }
 }
+
+// Re-export Motion Blueprint schema types and validator for unified imports
+export type {
+  LayerType,
+  EasingFunction,
+  CanvasConfig,
+  LoopConfig,
+  MotionKeyframe,
+  MotionLayer,
+  MotionBlueprint,
+  ValidateMotionBlueprintResult,
+} from '@genc/motion-schema';
+
+export {
+  LAYER_TYPES,
+  EASING_FUNCTIONS,
+  RULES_ANIMATION_LEVELS,
+  validateMotionBlueprint,
+} from '@genc/motion-schema';
