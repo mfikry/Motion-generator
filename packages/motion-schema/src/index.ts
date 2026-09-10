@@ -255,9 +255,13 @@ export function formatZodIssue(issue: z.ZodIssue): string {
  * Validate an unknown data object against the official Motion Blueprint schema.
  *
  * @param data The JSON object to validate (from Gemini API, DB, or file).
+ * @param options Optional settings (e.g. checkLoop to validate loop consistency).
  * @returns { valid: true, blueprint } on success, or { valid: false, errors: string[] } with actionable error messages.
  */
-export function validateMotionBlueprint(data: unknown): ValidateMotionBlueprintResult {
+export function validateMotionBlueprint(
+  data: unknown,
+  options?: { checkLoop?: boolean },
+): ValidateMotionBlueprintResult {
   if (data === null || typeof data !== 'object') {
     return {
       valid: false,
@@ -272,6 +276,16 @@ export function validateMotionBlueprint(data: unknown): ValidateMotionBlueprintR
   const parseResult = MotionBlueprintSchema.safeParse(data);
 
   if (parseResult.success) {
+    if (options?.checkLoop) {
+      const loopCheck = checkLoopConsistency(parseResult.data);
+      if (!loopCheck.seamless) {
+        return {
+          valid: false,
+          errors: loopCheck.errors,
+        };
+      }
+    }
+
     return {
       valid: true,
       blueprint: parseResult.data,
@@ -282,6 +296,171 @@ export function validateMotionBlueprint(data: unknown): ValidateMotionBlueprintR
 
   return {
     valid: false,
+    errors,
+  };
+}
+
+// ============================================================================
+// 5. Loop Consistency Validator
+// ============================================================================
+
+export interface LoopConsistencyResult {
+  seamless: boolean;
+  errors: string[];
+}
+
+/** Specific loop tolerances per property category */
+export const LOOP_TOLERANCES = {
+  /** Normalized properties (opacity, scale, pathProgress, etc.): ±0.02 */
+  NORMALIZED: 0.02,
+  /** Pixel-scale position and dimension properties (x, y, radius, width, etc.): ±2.0 px */
+  PIXEL: 2.0,
+  /** Angular/rotation properties: ±2.0 degrees (with modulo 360° wrapping) */
+  ROTATION_DEG: 2.0,
+} as const;
+
+const NORMALIZED_LOOP_PROPERTIES = new Set([
+  'opacity',
+  'alpha',
+  'scale',
+  'scaleX',
+  'scaleY',
+  'pathProgress',
+  'progress',
+]);
+
+const PIXEL_LOOP_PROPERTIES = new Set([
+  'x',
+  'y',
+  'cx',
+  'cy',
+  'radius',
+  'r',
+  'width',
+  'height',
+  'size',
+  'strokeWidth',
+  'posX',
+  'posY',
+  'translateX',
+  'translateY',
+]);
+
+const ROTATION_LOOP_PROPERTIES = new Set(['rotation', 'angle']);
+
+/**
+ * Validates that a Motion Blueprint with loop.seamless === true has matching
+ * start and end values for all animated properties across all layers.
+ *
+ * Compares property values at t = 0 vs t = durationSec (effective value from keyframes):
+ * - opacity, scale, pathProgress: tolerance ±0.02
+ * - pixel-scale properties (x, y, cx, cy, radius, width, height, etc.): tolerance ±2 px
+ * - rotation: tolerance ±2 degrees (with modulo 360° / 2pi revolution logic)
+ * - non-numeric properties (fill, stroke, strings, etc.): completely skipped from numeric checks
+ *
+ * @param blueprint The Motion Blueprint to check
+ * @returns { seamless: boolean, errors: string[] }
+ */
+export function checkLoopConsistency(blueprint: MotionBlueprint): LoopConsistencyResult {
+  if (!blueprint.loop?.seamless) {
+    return { seamless: true, errors: [] };
+  }
+
+  const errors: string[] = [];
+  const duration = blueprint.durationSec;
+
+  for (const layer of blueprint.layers ?? []) {
+    if (!Array.isArray(layer.keyframes) || layer.keyframes.length === 0) {
+      continue;
+    }
+
+    // Collect all animated property names across all keyframes in this layer
+    const animatedProps = new Set<string>();
+    for (const kf of layer.keyframes) {
+      if (kf.props && typeof kf.props === 'object') {
+        for (const propName of Object.keys(kf.props)) {
+          animatedProps.add(propName);
+        }
+      }
+    }
+
+    // Sort keyframes chronologically
+    const sortedKfs = [...layer.keyframes].sort((a, b) => a.t - b.t);
+
+    for (const prop of animatedProps) {
+      // 1. Determine effective value at t = 0
+      let valStart: unknown;
+      const kfAtZero = sortedKfs.find((kf) => kf.t === 0 && kf.props && prop in kf.props);
+      if (kfAtZero) {
+        valStart = kfAtZero.props[prop];
+      } else if (layer.properties && prop in layer.properties) {
+        valStart = layer.properties[prop];
+      } else {
+        const firstWithProp = sortedKfs.find((kf) => kf.props && prop in kf.props);
+        valStart = firstWithProp ? firstWithProp.props[prop] : undefined;
+      }
+
+      // 2. Determine effective value at t = durationSec
+      let valEnd: unknown;
+      const kfAtEnd = sortedKfs.find((kf) => kf.t === duration && kf.props && prop in kf.props);
+      if (kfAtEnd) {
+        valEnd = kfAtEnd.props[prop];
+      } else {
+        // Last keyframe at or before durationSec
+        const lastWithProp = [...sortedKfs]
+          .reverse()
+          .find((kf) => kf.t <= duration && kf.props && prop in kf.props);
+        valEnd = lastWithProp ? lastWithProp.props[prop] : valStart;
+      }
+
+      // Non-numeric properties (fill, stroke, strings, etc.) are skipped entirely
+      if (typeof valStart !== 'number' || typeof valEnd !== 'number') {
+        continue;
+      }
+
+      // 3. Compare values for mismatch with property-specific tolerances
+      let isMismatch = false;
+
+      if (ROTATION_LOOP_PROPERTIES.has(prop)) {
+        const diff = Math.abs(valEnd - valStart);
+        // Modulo 360 degree distance wrapping
+        const diffMod360 = diff % 360;
+        const normalizedDiffDeg = Math.min(diffMod360, 360 - diffMod360);
+
+        // Also support radian comparison (2*PI rad) in case radians are supplied
+        const twoPi = 2 * Math.PI;
+        const diffModRad = diff % twoPi;
+        const normalizedDiffRad = Math.min(diffModRad, twoPi - diffModRad);
+        const radTolerance = (LOOP_TOLERANCES.ROTATION_DEG * Math.PI) / 180;
+
+        if (normalizedDiffDeg > LOOP_TOLERANCES.ROTATION_DEG && normalizedDiffRad > radTolerance) {
+          isMismatch = true;
+        }
+      } else if (PIXEL_LOOP_PROPERTIES.has(prop)) {
+        if (Math.abs(valStart - valEnd) > LOOP_TOLERANCES.PIXEL) {
+          isMismatch = true;
+        }
+      } else if (NORMALIZED_LOOP_PROPERTIES.has(prop)) {
+        if (Math.abs(valStart - valEnd) > LOOP_TOLERANCES.NORMALIZED) {
+          isMismatch = true;
+        }
+      } else {
+        // Default tolerance for any other unspecified numeric property: ±0.02
+        if (Math.abs(valStart - valEnd) > LOOP_TOLERANCES.NORMALIZED) {
+          isMismatch = true;
+        }
+      }
+
+      if (isMismatch) {
+        errors.push(
+          `Layer '${layer.id}' tidak seamless: ${prop} di t=0 (${String(valStart)}) tidak sama dengan t=${duration} (${String(valEnd)})`,
+        );
+      }
+    }
+  }
+
+  return {
+    seamless: errors.length === 0,
     errors,
   };
 }

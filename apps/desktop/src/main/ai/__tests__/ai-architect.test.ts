@@ -67,6 +67,7 @@ const validBlueprintFixture: MotionBlueprint = {
       keyframes: [
         { t: 0, props: { scale: 0.5 }, easing: 'easeInOutCubic' },
         { t: 2.5, props: { scale: 1.0 }, easing: 'easeInOutCubic' },
+        { t: 5, props: { scale: 0.5 }, easing: 'easeInOutCubic' },
       ],
     },
   ],
@@ -236,6 +237,75 @@ describe('AI Architect (Text Mode)', () => {
       const secondCallArgs = mockGenerateContent.mock.calls[1]?.[0];
       expect(secondCallArgs?.contents).toContain('had schema validation errors');
       expect(secondCallArgs?.contents).toContain('layers[0].type');
+    });
+
+    it('should retry when Gemini returns a blueprint with non-seamless loop (central-burst case) and succeed on retry', async () => {
+      seedKey('key-1', 'Key 1', 'AIzaKey1');
+
+      // Attempt 1: central-burst opacity mismatch (t=0 is 0, t=15 is 1)
+      const centralBurstMismatch: MotionBlueprint = {
+        ...validBlueprintFixture,
+        durationSec: 15,
+        layers: [
+          {
+            id: 'central-burst',
+            type: 'shape',
+            shape: 'circle',
+            properties: { x: 960, y: 540, radius: 50, opacity: 0 },
+            keyframes: [
+              { t: 0, props: { opacity: 0 } },
+              { t: 7.5, props: { opacity: 1 } },
+              { t: 15, props: { opacity: 1 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+      };
+
+      const burstLayer = centralBurstMismatch.layers[0];
+      if (!burstLayer) throw new Error('burstLayer is undefined');
+
+      // Attempt 2: corrected (t=15 returns to 0)
+      const centralBurstCorrected: MotionBlueprint = {
+        ...centralBurstMismatch,
+        layers: [
+          {
+            ...burstLayer,
+            keyframes: [
+              { t: 0, props: { opacity: 0 } },
+              { t: 7.5, props: { opacity: 1 } },
+              { t: 15, props: { opacity: 0 } },
+            ],
+          },
+        ],
+      };
+
+      mockGenerateContent
+        .mockResolvedValueOnce({
+          text: JSON.stringify(centralBurstMismatch),
+          usageMetadata: { totalTokenCount: 400 },
+        })
+        .mockResolvedValueOnce({
+          text: JSON.stringify(centralBurstCorrected),
+          usageMetadata: { totalTokenCount: 450 },
+        });
+
+      const result = await generateBlueprintsFromText({
+        prompt: 'Central burst pulsing',
+        variations: 1,
+        batchSize: 1,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.blueprints.length).toBe(1);
+      expect(result.retriesUsed).toBe(1);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+
+      // Verify retry prompt sent to Gemini contains the exact central-burst mismatch error
+      const secondCallArgs = mockGenerateContent.mock.calls[1]?.[0];
+      expect(secondCallArgs?.contents).toContain(
+        "Layer 'central-burst' tidak seamless: opacity di t=0 (0) tidak sama dengan t=15 (1)",
+      );
     });
 
     it('should fail with clear error when MAX_SCHEMA_RETRIES is exhausted', async () => {

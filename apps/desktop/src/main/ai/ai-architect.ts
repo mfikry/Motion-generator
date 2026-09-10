@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { GoogleGenAI } from '@google/genai';
 import { getNextAvailableKey, markKeyRateLimited } from '../storage/key-rotation';
-import { validateMotionBlueprint } from '@genc/motion-schema';
+import { validateMotionBlueprint, checkLoopConsistency } from '@genc/motion-schema';
 import { buildMotionArchitectSystemPrompt, buildRetryPrompt } from './system-prompt';
 import { saveGeneration } from './generation-storage';
 import type {
@@ -148,6 +148,20 @@ async function generateSingleBlueprint(
       // Ensure blueprint has a unique UUID if placeholder or empty
       if (!blueprint.blueprintId || blueprint.blueprintId === 'uuid-v4') {
         blueprint.blueprintId = crypto.randomUUID();
+      }
+
+      // 5. Check loop consistency when seamless looping is required
+      const loopCheck = checkLoopConsistency(blueprint);
+      if (!loopCheck.seamless) {
+        if (retriesUsed < MAX_SCHEMA_RETRIES) {
+          retriesUsed++;
+          promptToSend = buildRetryPrompt(request.prompt, loopCheck.errors);
+          continue;
+        }
+        throw new Error(
+          `Motion Blueprint tidak valid setelah ${retriesUsed}x retry koreksi:\n` +
+            loopCheck.errors.slice(0, 3).join('\n'),
+        );
       }
 
       // Persist valid generation to SQLite

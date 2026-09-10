@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateMotionBlueprint,
+  checkLoopConsistency,
   LAYER_TYPES,
   EASING_FUNCTIONS,
   RULES_ANIMATION_LEVELS,
@@ -329,5 +330,281 @@ describe('Motion Blueprint Schema & Validator (@genc/motion-schema)', () => {
         expect(err).toContain('Instruction:'); // Contains actionable instructions
       });
     }
+  });
+
+  describe('Loop Consistency Validator (checkLoopConsistency)', () => {
+    it('should fail when layer has mismatch between t=0 and t=durationSec (central-burst case)', () => {
+      const centralBurstBlueprint: MotionBlueprint = {
+        blueprintId: 'test-central-burst',
+        category: 'burst-animation',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 15,
+        fps: 60,
+        palette: ['#ff00ff', '#00ffff'],
+        layers: [
+          {
+            id: 'central-burst',
+            type: 'shape',
+            shape: 'circle',
+            properties: { x: 540, y: 540, radius: 50, opacity: 0 },
+            keyframes: [
+              { t: 0, props: { opacity: 0 } },
+              { t: 7.5, props: { opacity: 1 } },
+              { t: 15, props: { opacity: 1 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+        rulesLevel: 'simple',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(centralBurstBlueprint);
+      expect(result.seamless).toBe(false);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toBe(
+        "Layer 'central-burst' tidak seamless: opacity di t=0 (0) tidak sama dengan t=15 (1)",
+      );
+    });
+
+    it('should pass when layer returns to initial property value at t=durationSec', () => {
+      const seamlessBlueprint: MotionBlueprint = {
+        blueprintId: 'test-seamless',
+        category: 'pulse',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 10,
+        fps: 60,
+        palette: ['#ff00ff'],
+        layers: [
+          {
+            id: 'pulsing-orb',
+            type: 'shape',
+            shape: 'circle',
+            properties: { x: 540, y: 540, radius: 50, scale: 1 },
+            keyframes: [
+              { t: 0, props: { scale: 1 } },
+              { t: 5, props: { scale: 1.5 } },
+              { t: 10, props: { scale: 1 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+        rulesLevel: 'high',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(seamlessBlueprint);
+      expect(result.seamless).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should ignore property mismatch when loop.seamless is false', () => {
+      const nonSeamlessBlueprint: MotionBlueprint = {
+        blueprintId: 'test-non-seamless',
+        category: 'intro',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 5,
+        fps: 60,
+        palette: ['#ff00ff'],
+        layers: [
+          {
+            id: 'central-burst',
+            type: 'shape',
+            shape: 'circle',
+            properties: { opacity: 0 },
+            keyframes: [
+              { t: 0, props: { opacity: 0 } },
+              { t: 5, props: { opacity: 1 } },
+            ],
+          },
+        ],
+        loop: { seamless: false },
+        rulesLevel: 'simple',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(nonSeamlessBlueprint);
+      expect(result.seamless).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should recognize 360-degree rotation revolution as seamless', () => {
+      const rotatingBlueprint: MotionBlueprint = {
+        blueprintId: 'test-rotating',
+        category: 'spinner',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 6,
+        fps: 60,
+        palette: ['#00ff00'],
+        layers: [
+          {
+            id: 'spinning-wheel',
+            type: 'shape',
+            shape: 'rect',
+            properties: { x: 540, y: 540, rotation: 0 },
+            keyframes: [
+              { t: 0, props: { rotation: 0 } },
+              { t: 6, props: { rotation: 360 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+        rulesLevel: 'simple',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(rotatingBlueprint);
+      expect(result.seamless).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should report multiple property mismatches across layers', () => {
+      const multiMismatchBlueprint: MotionBlueprint = {
+        blueprintId: 'test-multi',
+        category: 'complex',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 10,
+        fps: 60,
+        palette: ['#ffffff'],
+        layers: [
+          {
+            id: 'layer-a',
+            type: 'shape',
+            properties: { x: 100 },
+            keyframes: [
+              { t: 0, props: { x: 100 } },
+              { t: 10, props: { x: 500 } },
+            ],
+          },
+          {
+            id: 'layer-b',
+            type: 'path',
+            properties: { pathProgress: 0 },
+            keyframes: [
+              { t: 0, props: { pathProgress: 0 } },
+              { t: 10, props: { pathProgress: 1 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+        rulesLevel: 'simple',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(multiMismatchBlueprint);
+      expect(result.seamless).toBe(false);
+      expect(result.errors.length).toBe(2);
+      expect(result.errors[0]).toContain(
+        "Layer 'layer-a' tidak seamless: x di t=0 (100) tidak sama dengan t=10 (500)",
+      );
+      expect(result.errors[1]).toContain(
+        "Layer 'layer-b' tidak seamless: pathProgress di t=0 (0) tidak sama dengan t=10 (1)",
+      );
+    });
+
+    it('should pass position with small floating-point delta (x: 200.005 vs x: 200) without false positive', () => {
+      const floatJitterBlueprint: MotionBlueprint = {
+        blueprintId: 'test-float-jitter',
+        category: 'subpixel-motion',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 5,
+        fps: 60,
+        palette: ['#ffffff'],
+        layers: [
+          {
+            id: 'floating-dot',
+            type: 'shape',
+            shape: 'circle',
+            properties: { x: 200, y: 300, radius: 20 },
+            keyframes: [
+              { t: 0, props: { x: 200.005, y: 300.5 } },
+              { t: 2.5, props: { x: 250, y: 350 } },
+              { t: 5, props: { x: 200, y: 301.2 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+        rulesLevel: 'simple',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(floatJitterBlueprint);
+      // Diff in x is 0.005 (<= 2px), diff in y is 0.7 (<= 2px) -> must pass!
+      expect(result.seamless).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should fail position when difference exceeds 2px tolerance (e.g. x: 200 vs x: 203)', () => {
+      const positionJumpBlueprint: MotionBlueprint = {
+        blueprintId: 'test-pos-jump',
+        category: 'position-jump',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 5,
+        fps: 60,
+        palette: ['#ffffff'],
+        layers: [
+          {
+            id: 'jumping-box',
+            type: 'shape',
+            shape: 'rect',
+            properties: { x: 200, y: 300 },
+            keyframes: [
+              { t: 0, props: { x: 200 } },
+              { t: 5, props: { x: 203 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+        rulesLevel: 'simple',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(positionJumpBlueprint);
+      expect(result.seamless).toBe(false);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain(
+        "Layer 'jumping-box' tidak seamless: x di t=0 (200) tidak sama dengan t=5 (203)",
+      );
+    });
+
+    it('should completely skip non-numeric properties like fill hex string from loop consistency checks', () => {
+      const colorChangeBlueprint: MotionBlueprint = {
+        blueprintId: 'test-color-change',
+        category: 'color-morph',
+        canvas: { width: 1080, height: 1080, background: '#000000' },
+        durationSec: 8,
+        fps: 60,
+        palette: ['#ff0000', '#0000ff'],
+        layers: [
+          {
+            id: 'color-shifter',
+            type: 'shape',
+            shape: 'circle',
+            properties: { x: 500, y: 500, radius: 40, fill: '#ff0000' },
+            keyframes: [
+              { t: 0, props: { fill: '#ff0000', opacity: 1 } },
+              { t: 4, props: { fill: '#00ff00', opacity: 0.8 } },
+              { t: 8, props: { fill: '#0000ff', opacity: 1 } },
+            ],
+          },
+        ],
+        loop: { seamless: true },
+        rulesLevel: 'simple',
+        introOutro: false,
+        noText: true,
+      };
+
+      const result = checkLoopConsistency(colorChangeBlueprint);
+      // fill is non-numeric string, so it is skipped. opacity returns from 1 -> 1 -> seamless!
+      expect(result.seamless).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
   });
 });

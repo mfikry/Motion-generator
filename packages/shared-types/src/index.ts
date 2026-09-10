@@ -158,6 +158,7 @@ export type {
   MotionLayer,
   MotionBlueprint,
   ValidateMotionBlueprintResult,
+  LoopConsistencyResult,
 } from '@genc/motion-schema';
 
 export {
@@ -165,4 +166,6 @@ export {
   EASING_FUNCTIONS,
   RULES_ANIMATION_LEVELS,
   validateMotionBlueprint,
+  checkLoopConsistency,
+  LOOP_TOLERANCES,
 } from '@genc/motion-schema';
