@@ -1,9 +1,25 @@
+import { useRenderSettingsStore } from '../store/renderSettingsStore';
+
 /**
  * RenderSettingsPanel — Right column: Time Anim, No Text, Background Animations,
  * Green Screen, Intro/Outro, Rules Animations, Colors BG, Easing Preset.
- * Visual shell only — no functional logic.
+ * Connected to live renderSettingsStore for real-time canvas preview updates.
  */
 export function RenderSettingsPanel() {
+  const {
+    timeAnim,
+    noText,
+    backgroundAnimations,
+    greenScreen,
+    introOutro,
+    rulesLevel,
+    toggleNoText,
+    toggleBackgroundAnimations,
+    toggleGreenScreen,
+    setIntroOutro,
+    setRulesLevel,
+  } = useRenderSettingsStore();
+
   return (
     <aside className="flex flex-col gap-3 p-3 h-full overflow-y-auto">
       {/* Section Header */}
@@ -17,12 +33,15 @@ export function RenderSettingsPanel() {
           Time Anim (sec)
         </span>
         <span className="text-3xl font-extrabold text-[var(--color-text-primary)] font-[var(--font-display)]">
-          15
+          {timeAnim}
         </span>
       </div>
 
       {/* No Text Toggle */}
-      <div className="glass-card p-3 flex items-center justify-between">
+      <div
+        onClick={toggleNoText}
+        className="glass-card p-3 flex items-center justify-between cursor-pointer hover:border-[var(--color-border-accent)] transition-colors select-none"
+      >
         <div className="flex items-center gap-2">
           <span className="text-base">🚫</span>
           <span className="text-[12px] font-bold text-[var(--color-text-primary)] uppercase tracking-wide">
@@ -30,13 +49,20 @@ export function RenderSettingsPanel() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-[var(--color-accent-green)]">ON</span>
-          <div className="toggle-switch active" />
+          <span
+            className={`text-[10px] font-semibold ${noText ? 'text-[var(--color-accent-green)]' : 'text-[var(--color-text-muted)]'}`}
+          >
+            {noText ? 'ON' : 'OFF'}
+          </span>
+          <div className={`toggle-switch ${noText ? 'active' : ''}`} />
         </div>
       </div>
 
       {/* Background Animations Toggle */}
-      <div className="glass-card p-3 flex items-center justify-between">
+      <div
+        onClick={toggleBackgroundAnimations}
+        className="glass-card p-3 flex items-center justify-between cursor-pointer hover:border-[var(--color-border-accent)] transition-colors select-none"
+      >
         <div className="flex items-center gap-2">
           <span className="text-base">🎨</span>
           <span className="text-[11px] font-bold text-[var(--color-text-primary)] uppercase tracking-wide leading-tight">
@@ -46,28 +72,45 @@ export function RenderSettingsPanel() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">OFF</span>
-          <div className="toggle-switch" />
+          <span
+            className={`text-[10px] font-semibold ${backgroundAnimations ? 'text-[var(--color-accent-green)]' : 'text-[var(--color-text-muted)]'}`}
+          >
+            {backgroundAnimations ? 'ON' : 'OFF'}
+          </span>
+          <div className={`toggle-switch ${backgroundAnimations ? 'active' : ''}`} />
         </div>
       </div>
 
       {/* Green Screen Toggle */}
       <div
-        className="glass-card p-3 flex items-center justify-between glow-ai"
-        style={{
-          borderColor: 'rgba(34, 197, 94, 0.3)',
-          boxShadow: '0 0 15px var(--color-glow-green)',
-        }}
+        onClick={toggleGreenScreen}
+        className={`glass-card p-3 flex items-center justify-between cursor-pointer transition-all select-none ${
+          greenScreen
+            ? 'glow-ai border-[rgba(34,197,94,0.5)]'
+            : 'hover:border-[var(--color-border-accent)]'
+        }`}
+        style={
+          greenScreen
+            ? {
+                borderColor: 'rgba(34, 197, 94, 0.5)',
+                boxShadow: '0 0 15px var(--color-glow-green)',
+              }
+            : undefined
+        }
       >
         <div className="flex items-center gap-2">
-          <span className="w-5 h-5 rounded bg-[#00B140] inline-block border border-[rgba(34,197,94,0.5)]" />
+          <span className="w-5 h-5 rounded bg-[#00B140] inline-block border border-[rgba(34,197,94,0.5)] shadow-sm" />
           <span className="text-[12px] font-bold text-[var(--color-text-primary)] uppercase tracking-wide">
             Green Screen
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-[var(--color-accent-green)]">ON</span>
-          <div className="toggle-switch active" />
+          <span
+            className={`text-[10px] font-semibold ${greenScreen ? 'text-[var(--color-accent-green)]' : 'text-[var(--color-text-muted)]'}`}
+          >
+            {greenScreen ? 'ON' : 'OFF'}
+          </span>
+          <div className={`toggle-switch ${greenScreen ? 'active' : ''}`} />
         </div>
       </div>
 
@@ -77,10 +120,24 @@ export function RenderSettingsPanel() {
           Intro/Outro Anim
         </span>
         <div className="flex rounded-lg overflow-hidden border border-[var(--color-border-subtle)]">
-          <button className="flex-1 py-2 text-[11px] font-semibold uppercase tracking-wider bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-none cursor-pointer hover:text-[var(--color-text-primary)] transition-colors">
+          <button
+            onClick={() => setIntroOutro(false)}
+            className={`flex-1 py-2 text-[11px] font-semibold uppercase tracking-wider border-none cursor-pointer transition-colors ${
+              !introOutro
+                ? 'bg-gradient-to-r from-[var(--color-btn-primary-from)] to-[var(--color-btn-primary-to)] text-white'
+                : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
             Tidak
           </button>
-          <button className="flex-1 py-2 text-[11px] font-semibold uppercase tracking-wider bg-gradient-to-r from-[var(--color-btn-primary-from)] to-[var(--color-btn-primary-to)] text-white border-none cursor-pointer">
+          <button
+            onClick={() => setIntroOutro(true)}
+            className={`flex-1 py-2 text-[11px] font-semibold uppercase tracking-wider border-none cursor-pointer transition-colors ${
+              introOutro
+                ? 'bg-gradient-to-r from-[var(--color-btn-primary-from)] to-[var(--color-btn-primary-to)] text-white'
+                : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
             Pakai
           </button>
         </div>
@@ -92,11 +149,30 @@ export function RenderSettingsPanel() {
           Rules Animations
         </span>
         <div className="flex gap-1">
-          <button className="chip flex-1 text-[10px] text-center justify-center">Simple</button>
-          <button className="chip active flex-1 text-[10px] text-center justify-center">
+          <button
+            onClick={() => setRulesLevel('simple')}
+            className={`chip flex-1 text-[10px] text-center justify-center cursor-pointer ${
+              rulesLevel === 'simple' ? 'active' : ''
+            }`}
+          >
+            Simple
+          </button>
+          <button
+            onClick={() => setRulesLevel('high')}
+            className={`chip flex-1 text-[10px] text-center justify-center cursor-pointer ${
+              rulesLevel === 'high' ? 'active' : ''
+            }`}
+          >
             High
           </button>
-          <button className="chip flex-1 text-[10px] text-center justify-center">Expert</button>
+          <button
+            onClick={() => setRulesLevel('expert')}
+            className={`chip flex-1 text-[10px] text-center justify-center cursor-pointer ${
+              rulesLevel === 'expert' ? 'active' : ''
+            }`}
+          >
+            Expert
+          </button>
         </div>
       </div>
 
@@ -125,8 +201,8 @@ export function RenderSettingsPanel() {
             Easing Preset
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[var(--color-text-muted)]">OFF</span>
-            <div className="toggle-switch" />
+            <span className="text-[10px] text-[var(--color-accent-green)]">ON</span>
+            <div className="toggle-switch active" />
           </div>
         </div>
         <div className="flex gap-1">

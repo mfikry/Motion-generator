@@ -16,6 +16,7 @@
     "@genc/shared-types": "*",
     "@google/genai": "^2.21.0",
     "better-sqlite3": "^12.11.1",
+    "pixi.js": "^8.20.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.15"
