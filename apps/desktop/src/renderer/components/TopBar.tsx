@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useApiKeyStore } from '../store/apiKeyStore';
 import { useGenerationStore } from '../store/generationStore';
+import { useSandboxStore } from '../store/sandboxStore';
 
 /**
  * TopBar — App branding, API key status counter, update check, tour, lite mode, theme toggle.
@@ -87,6 +88,19 @@ export function TopBar() {
             </div>
             <span className="text-[12px]">🌙</span>
           </div>
+
+          {/* Dev-Only Sandbox Playground Trigger */}
+          {import.meta.env.DEV && (
+            <button
+              id="btn-open-sandbox"
+              onClick={useSandboxStore.getState().openModal}
+              className="badge bg-purple-900/90 text-purple-200 border border-purple-500/60 hover:bg-purple-800 cursor-pointer text-[10px] flex items-center gap-1 font-mono transition-all ml-1 shadow-sm"
+              title="Buka Canvas2D Sandbox Playground (v2.0 Dev-Only)"
+            >
+              <span>🧪</span>
+              <span>SANDBOX</span>
+            </button>
+          )}
         </div>
       </div>
 

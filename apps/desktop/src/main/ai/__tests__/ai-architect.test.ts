@@ -55,7 +55,6 @@ const validBlueprintFixture: MotionBlueprint = {
   blueprintId: 'bp-test-uuid',
   category: 'cyberpunk',
   canvas: { width: 1920, height: 1080, background: '#0a0a1a' },
-  durationSec: 5,
   fps: 30,
   palette: ['#00ffff', '#ff00ff', '#ffff00', '#0a0a1a'],
   layers: [
@@ -66,8 +65,8 @@ const validBlueprintFixture: MotionBlueprint = {
       properties: { x: 960, y: 540, radius: 50, color: '#00ffff' },
       keyframes: [
         { t: 0, props: { scale: 0.5 }, easing: 'easeInOutCubic' },
-        { t: 2.5, props: { scale: 1.0 }, easing: 'easeInOutCubic' },
-        { t: 5, props: { scale: 0.5 }, easing: 'easeInOutCubic' },
+        { t: 0.5, props: { scale: 1.0 }, easing: 'easeInOutCubic' },
+        { t: 1.0, props: { scale: 0.5 }, easing: 'easeInOutCubic' },
       ],
     },
   ],
@@ -242,10 +241,9 @@ describe('AI Architect (Text Mode)', () => {
     it('should retry when Gemini returns a blueprint with non-seamless loop (central-burst case) and succeed on retry', async () => {
       seedKey('key-1', 'Key 1', 'AIzaKey1');
 
-      // Attempt 1: central-burst opacity mismatch (t=0 is 0, t=15 is 1)
+      // Attempt 1: central-burst opacity mismatch (t=0 is 0, t=1.0 is 1)
       const centralBurstMismatch: MotionBlueprint = {
         ...validBlueprintFixture,
-        durationSec: 15,
         layers: [
           {
             id: 'central-burst',
@@ -254,8 +252,8 @@ describe('AI Architect (Text Mode)', () => {
             properties: { x: 960, y: 540, radius: 50, opacity: 0 },
             keyframes: [
               { t: 0, props: { opacity: 0 } },
-              { t: 7.5, props: { opacity: 1 } },
-              { t: 15, props: { opacity: 1 } },
+              { t: 0.5, props: { opacity: 1 } },
+              { t: 1.0, props: { opacity: 1 } },
             ],
           },
         ],
@@ -265,7 +263,7 @@ describe('AI Architect (Text Mode)', () => {
       const burstLayer = centralBurstMismatch.layers[0];
       if (!burstLayer) throw new Error('burstLayer is undefined');
 
-      // Attempt 2: corrected (t=15 returns to 0)
+      // Attempt 2: corrected (t=1.0 returns to 0)
       const centralBurstCorrected: MotionBlueprint = {
         ...centralBurstMismatch,
         layers: [
@@ -273,8 +271,8 @@ describe('AI Architect (Text Mode)', () => {
             ...burstLayer,
             keyframes: [
               { t: 0, props: { opacity: 0 } },
-              { t: 7.5, props: { opacity: 1 } },
-              { t: 15, props: { opacity: 0 } },
+              { t: 0.5, props: { opacity: 1 } },
+              { t: 1.0, props: { opacity: 0 } },
             ],
           },
         ],
@@ -304,8 +302,53 @@ describe('AI Architect (Text Mode)', () => {
       // Verify retry prompt sent to Gemini contains the exact central-burst mismatch error
       const secondCallArgs = mockGenerateContent.mock.calls[1]?.[0];
       expect(secondCallArgs?.contents).toContain(
-        "Layer 'central-burst' tidak seamless: opacity di t=0 (0) tidak sama dengan t=15 (1)",
+        "Layer 'central-burst' tidak seamless: opacity di t=0 (0) tidak sama dengan t=1.0 (1)",
       );
+    });
+
+    it('should retry when Gemini returns canvas dimensions not matching requested aspect ratio and succeed on retry', async () => {
+      seedKey('key-1', 'Key 1', 'AIzaKey1');
+
+      // Attempt 1: Gemini returns square 1080x1080 when 16:9 was requested
+      const mismatchedRatioBlueprint: MotionBlueprint = {
+        ...validBlueprintFixture,
+        canvas: { width: 1080, height: 1080, background: '#0a0a1a' },
+      };
+
+      // Attempt 2: Correct 1920x1080
+      const correctedBlueprint: MotionBlueprint = {
+        ...validBlueprintFixture,
+        canvas: { width: 1920, height: 1080, background: '#0a0a1a' },
+      };
+
+      mockGenerateContent
+        .mockResolvedValueOnce({
+          text: JSON.stringify(mismatchedRatioBlueprint),
+          usageMetadata: { totalTokenCount: 300 },
+        })
+        .mockResolvedValueOnce({
+          text: JSON.stringify(correctedBlueprint),
+          usageMetadata: { totalTokenCount: 320 },
+        });
+
+      const result = await generateBlueprintsFromText({
+        prompt: 'Landscape banner motion',
+        variations: 1,
+        batchSize: 1,
+        settings: {
+          aspectRatio: '16:9',
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.blueprints.length).toBe(1);
+      expect(result.blueprints[0]?.canvas.width).toBe(1920);
+      expect(result.blueprints[0]?.canvas.height).toBe(1080);
+      expect(result.retriesUsed).toBe(1);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+
+      const secondCallArgs = mockGenerateContent.mock.calls[1]?.[0];
+      expect(secondCallArgs?.contents).toContain('Canvas dimensions [1080x1080] do not match required dimensions [1920x1080] for aspect ratio 16:9');
     });
 
     it('should fail with clear error when MAX_SCHEMA_RETRIES is exhausted', async () => {
@@ -313,7 +356,7 @@ describe('AI Architect (Text Mode)', () => {
 
       const invalidBlueprint = {
         ...validBlueprintFixture,
-        canvas: { width: 100, height: 100 }, // Invalid canvas bounds
+        canvas: { width: 100, height: 100 }, // Invalid canvas bounds — missing background
       };
 
       // Fails 3 times (initial + 2 retries)

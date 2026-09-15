@@ -1,21 +1,22 @@
 import { useGenerationStore } from '../store/generationStore';
+import { useRenderSettingsStore } from '../store/renderSettingsStore';
 
 const PROMPT_PRESETS = [
   {
+    label: '✨ Neon Particles',
+    prompt: 'neon particles',
+  },
+  {
+    label: '🔄 Rotating Rings',
+    prompt: 'rotating rings',
+  },
+  {
+    label: '📈 Grafik Tren Naik',
+    prompt: 'grafik tren naik',
+  },
+  {
     label: '📊 Bar Chart',
-    prompt: 'grafik batang pertumbuhan naik, gaya flat corporate, warna biru-oranye',
-  },
-  {
-    label: '📈 Trend Arrow',
-    prompt: 'panah tren naik dinamis dengan garis aksen bercahaya, warna hijau neon',
-  },
-  {
-    label: '🎯 Icon Pulse',
-    prompt: 'ikon target sasaran dengan efek ripple lingkaran berulang, warna ungu-emas',
-  },
-  {
-    label: '🛍️ Promo Banner',
-    prompt: 'stiker diskon badge bulat berputar dengan aksen bintang, warna merah-kuning',
+    prompt: 'grafik batang pertumbuhan',
   },
 ];
 
@@ -45,7 +46,15 @@ export function AIArchitectPanel() {
   const totalTasks = variations * batchSize;
 
   const handleGenerate = () => {
-    generate();
+    const settings = useRenderSettingsStore.getState();
+    generate({
+      noText: settings.noText,
+      greenScreen: settings.greenScreen,
+      rulesLevel: settings.rulesLevel,
+      introOutro: settings.introOutro,
+      backgroundColor: settings.colorsBg,
+      aspectRatio: settings.aspectRatio,
+    });
   };
 
   return (
@@ -89,7 +98,7 @@ export function AIArchitectPanel() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                Prompt Deskripsi
+                Prompt Tema Singkat
               </label>
               <span className="text-[10px] text-[var(--color-text-muted)] font-mono">
                 {prompt.length} chars
@@ -98,7 +107,7 @@ export function AIArchitectPanel() {
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Deskripsikan motion graphics... mis: grafik batang pertumbuhan naik, gaya flat corporate, warna biru-oranye"
+              placeholder="Ketik tema singkat... mis: neon particles, rotating rings, grafik tren naik"
               rows={4}
               disabled={isGenerating}
               className="input-dark w-full resize-none text-xs leading-relaxed font-sans placeholder:text-gray-500 focus:border-[var(--color-accent-ai)]"

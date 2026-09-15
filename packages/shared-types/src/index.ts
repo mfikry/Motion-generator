@@ -83,14 +83,25 @@ export type EasingPreset = 'off' | 'natural' | 'strong';
 /** Background color mode */
 export type ColorsBgMode = 'solid' | 'gradient' | 'pastel';
 
-/** Render settings applied to generation */
+/** Supported aspect ratios */
+export type AspectRatio = '16:9' | '9:16' | '1:1';
+export const ASPECT_RATIOS: AspectRatio[] = ['16:9', '9:16', '1:1'];
+
+export const ASPECT_RATIO_DIMENSIONS: Record<AspectRatio, { width: number; height: number }> = {
+  '16:9': { width: 1920, height: 1080 },
+  '9:16': { width: 1080, height: 1920 },
+  '1:1': { width: 1080, height: 1080 },
+};
+
+/** Render settings applied to generation (v1.1: durationSec removed — purely UI param; v1.2: introOutro added; v1.3: aspectRatio added) */
 export interface GenerateTextSettings {
-  durationSec?: number;
   noText?: boolean;
   rulesLevel?: RulesAnimationLevel;
   seamless?: boolean;
   greenScreen?: boolean;
   backgroundColor?: string;
+  introOutro?: boolean;
+  aspectRatio?: AspectRatio;
 }
 
 /** Request payload for text mode generation */
@@ -159,12 +170,16 @@ export type {
   MotionBlueprint,
   ValidateMotionBlueprintResult,
   LoopConsistencyResult,
+  ParticleMotionPattern,
+  ParticleSystemArea,
+  ParticleSystemProperties,
 } from '@genc/motion-schema';
 
 export {
   LAYER_TYPES,
   EASING_FUNCTIONS,
   RULES_ANIMATION_LEVELS,
+  PARTICLE_MOTION_PATTERNS,
   validateMotionBlueprint,
   checkLoopConsistency,
   LOOP_TOLERANCES,

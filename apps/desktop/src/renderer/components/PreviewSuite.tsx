@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useGenerationStore } from '../store/generationStore';
 import { useCanvasPlaybackStore } from '../store/canvasPlaybackStore';
 import { PreviewCanvas } from './PreviewCanvas';
+import { CanvasErrorBoundary } from './CanvasErrorBoundary';
 
 /**
  * Format seconds into mm:ss.s (e.g. 00:02.5 / 00:15.0)
@@ -29,9 +30,13 @@ export function PreviewSuite() {
 
   const handleCopyJson = () => {
     if (!currentBlueprint) return;
-    navigator.clipboard.writeText(JSON.stringify(currentBlueprint, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      navigator.clipboard.writeText(JSON.stringify(currentBlueprint, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.warn('Failed to copy JSON:', err);
+    }
   };
 
   const togglePlay = () => {
@@ -132,7 +137,14 @@ export function PreviewSuite() {
         {viewMode === 'canvas' ? (
           /* Live WebGL PixiJS Canvas View */
           <div className="relative flex-1 w-full h-full min-h-[280px]">
-            <PreviewCanvas />
+            <CanvasErrorBoundary
+              key={currentBlueprint?.blueprintId || 'empty'}
+              onReset={() => {
+                reset();
+              }}
+            >
+              <PreviewCanvas />
+            </CanvasErrorBoundary>
 
             {/* Empty state / Generating overlay when no blueprint is active */}
             {!currentBlueprint && (
@@ -154,7 +166,13 @@ export function PreviewSuite() {
           /* Raw JSON View */
           <div className="flex-1 overflow-auto p-3 font-mono text-[11px] leading-relaxed text-[var(--color-accent-preview)] bg-[var(--color-bg-surface)]">
             <pre className="m-0 select-text whitespace-pre-wrap break-all">
-              {JSON.stringify(currentBlueprint, null, 2)}
+              {(() => {
+                try {
+                  return JSON.stringify(currentBlueprint, null, 2);
+                } catch (err) {
+                  return `Gagal serialize JSON: ${err instanceof Error ? err.message : String(err)}`;
+                }
+              })()}
             </pre>
           </div>
         ) : currentBlueprint ? (
@@ -171,7 +189,7 @@ export function PreviewSuite() {
                     {currentBlueprint.canvas.width}x{currentBlueprint.canvas.height}
                   </span>
                   <span className="badge badge-green text-[10px]">
-                    {currentBlueprint.durationSec}s @ {currentBlueprint.fps} FPS
+                    {duration}s @ {currentBlueprint.fps} FPS
                   </span>
                 </div>
                 <h3 className="text-sm font-bold text-white mt-1.5 m-0 font-[var(--font-display)]">
@@ -261,9 +279,9 @@ export function PreviewSuite() {
                     </div>
                     <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-secondary)]">
                       <span>
-                        <strong className="text-white">{layer.keyframes.length}</strong> keyframes
+                        <strong className="text-white">{layer.keyframes?.length ?? 0}</strong> keyframes
                       </span>
-                      {layer.keyframes[0]?.easing && (
+                      {layer.keyframes?.[0]?.easing && (
                         <span className="font-mono text-[10px] text-[var(--color-accent-preview)]">
                           {layer.keyframes[0].easing}
                         </span>

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { interpolateLayerProperties } from '../interpolator';
 import type { MotionLayer } from '@genc/motion-schema';
 
-describe('Layer Property Interpolator (@genc/desktop/canvas/interpolator)', () => {
+describe('Layer Property Interpolator (@genc/desktop/canvas/interpolator) - v1.1 Normalized Time', () => {
   const animatedShapeLayer: MotionLayer = {
     id: 'box-pulse',
     type: 'shape',
@@ -22,12 +22,12 @@ describe('Layer Property Interpolator (@genc/desktop/canvas/interpolator)', () =
         props: { x: 100, opacity: 1, rotation: 0, fill: '#000000' },
       },
       {
-        t: 2.0,
+        t: 0.5,
         props: { x: 300, opacity: 0.5, rotation: 90, fill: '#FFFFFF' },
         easing: 'linear',
       },
       {
-        t: 4.0,
+        t: 1.0,
         props: { x: 100, opacity: 1, rotation: 180, fill: '#000000' },
         easing: 'linear',
       },
@@ -52,7 +52,7 @@ describe('Layer Property Interpolator (@genc/desktop/canvas/interpolator)', () =
         props: { opacity: 1, fill: '#101010' },
       },
       {
-        t: 5.0,
+        t: 1.0,
         props: { opacity: 0.2, fill: '#505050' },
         easing: 'linear',
       },
@@ -67,52 +67,52 @@ describe('Layer Property Interpolator (@genc/desktop/canvas/interpolator)', () =
     expect(props.fill?.toLowerCase()).toBe('#000000');
   });
 
-  it('interpolates intermediate values at midpoint t=1.0', () => {
-    const props = interpolateLayerProperties(animatedShapeLayer, 1.0);
-    // Between t=0 (x:100, opacity:1) and t=2 (x:300, opacity:0.5)
+  it('interpolates intermediate values at quarter-progress t=0.25', () => {
+    const props = interpolateLayerProperties(animatedShapeLayer, 0.25);
+    // Between t=0.0 (x:100, opacity:1) and t=0.5 (x:300, opacity:0.5)
     expect(props.x).toBe(200);
     expect(props.opacity).toBeCloseTo(0.75, 2);
     expect(props.rotation).toBe(45);
     expect(props.fill?.toLowerCase()).toBe('#808080');
   });
 
-  it('evaluates properties exactly at t=2.0 (second keyframe)', () => {
-    const props = interpolateLayerProperties(animatedShapeLayer, 2.0);
+  it('evaluates properties exactly at t=0.5 (second keyframe)', () => {
+    const props = interpolateLayerProperties(animatedShapeLayer, 0.5);
     expect(props.x).toBe(300);
     expect(props.opacity).toBe(0.5);
     expect(props.rotation).toBe(90);
     expect(props.fill?.toLowerCase()).toBe('#ffffff');
   });
 
-  it('clamps to final keyframe when t >= last keyframe time', () => {
-    const propsAt4 = interpolateLayerProperties(animatedShapeLayer, 4.0);
-    const propsAt10 = interpolateLayerProperties(animatedShapeLayer, 10.0);
+  it('clamps to final keyframe when t >= 1.0', () => {
+    const propsAt1 = interpolateLayerProperties(animatedShapeLayer, 1.0);
+    const propsPast1 = interpolateLayerProperties(animatedShapeLayer, 1.5);
 
-    expect(propsAt4.x).toBe(100);
-    expect(propsAt4.rotation).toBe(180);
+    expect(propsAt1.x).toBe(100);
+    expect(propsAt1.rotation).toBe(180);
 
-    expect(propsAt10.x).toBe(100);
-    expect(propsAt10.rotation).toBe(180);
-    expect(propsAt10.opacity).toBe(1);
+    expect(propsPast1.x).toBe(100);
+    expect(propsPast1.rotation).toBe(180);
+    expect(propsPast1.opacity).toBe(1);
   });
 
   it('freezes background layer at t=0 when backgroundAnimations is false', () => {
     // When backgroundAnimations is false, background layer stays at t=0
-    const frozenProps = interpolateLayerProperties(backgroundLayer, 2.5, {
+    const frozenProps = interpolateLayerProperties(backgroundLayer, 0.5, {
       backgroundAnimations: false,
     });
     expect(frozenProps.opacity).toBe(1);
     expect(frozenProps.fill?.toLowerCase()).toBe('#101010');
 
     // When backgroundAnimations is true, background layer animates
-    const animatedProps = interpolateLayerProperties(backgroundLayer, 2.5, {
+    const animatedProps = interpolateLayerProperties(backgroundLayer, 0.5, {
       backgroundAnimations: true,
     });
     expect(animatedProps.opacity).toBeCloseTo(0.6, 2);
   });
 
   it('does not freeze non-background layers when backgroundAnimations is false', () => {
-    const props = interpolateLayerProperties(animatedShapeLayer, 1.0, {
+    const props = interpolateLayerProperties(animatedShapeLayer, 0.25, {
       backgroundAnimations: false,
     });
     expect(props.x).toBe(200);
@@ -128,7 +128,7 @@ describe('Layer Property Interpolator (@genc/desktop/canvas/interpolator)', () =
       keyframes: [],
     };
 
-    const props = interpolateLayerProperties(staticLayer, 3.5);
+    const props = interpolateLayerProperties(staticLayer, 0.5);
     expect(props.cx).toBe(500);
     expect(props.cy).toBe(500);
     expect(props.radius).toBe(40);

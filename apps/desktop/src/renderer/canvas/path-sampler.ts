@@ -16,6 +16,7 @@ const pathCache = new Map<string, SampledPath>();
  * Uses native browser SVGPathElement.getPointAtLength for hardware-accelerated precision.
  */
 export function sampleSvgPath(d: string, sampleCount = 120): SampledPath {
+  const trimmed = (d || '').trim();
   const cached = pathCache.get(trimmed);
   if (cached) {
     return cached;

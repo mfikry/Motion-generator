@@ -139,8 +139,10 @@ async function generateSingleBlueprint(
       );
     }
 
-    // 4. Validate against Motion Blueprint Zod Schema
-    const validation = validateMotionBlueprint(parsedJson);
+    // 4. Validate against Motion Blueprint Zod Schema with locked aspect ratio constraint
+    const validation = validateMotionBlueprint(parsedJson, {
+      expectedAspectRatio: request.settings?.aspectRatio,
+    });
 
     if (validation.valid) {
       const blueprint = validation.blueprint;
@@ -155,7 +157,7 @@ async function generateSingleBlueprint(
       if (!loopCheck.seamless) {
         if (retriesUsed < MAX_SCHEMA_RETRIES) {
           retriesUsed++;
-          promptToSend = buildRetryPrompt(request.prompt, loopCheck.errors);
+          promptToSend = buildRetryPrompt(request.prompt, loopCheck.errors, request.settings);
           continue;
         }
         throw new Error(
@@ -183,7 +185,7 @@ async function generateSingleBlueprint(
     // Validation failed: retry if quota remains
     if (retriesUsed < MAX_SCHEMA_RETRIES) {
       retriesUsed++;
-      promptToSend = buildRetryPrompt(request.prompt, validation.errors);
+      promptToSend = buildRetryPrompt(request.prompt, validation.errors, request.settings);
       continue;
     }
 

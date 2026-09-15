@@ -25,12 +25,12 @@ function isHexColor(val: unknown): val is string {
 }
 
 /**
- * Interpolate all properties for a single layer at timestamp t.
+ * Interpolate all properties for a single layer at normalized progress t.
  *
  * @param layer The MotionLayer from the blueprint
- * @param time Current playback timestamp in seconds
+ * @param time Current normalized progress (0.0–1.0), after Time Remap from playback seconds
  * @param options Optional flags (e.g. backgroundAnimations toggle)
- * @returns Map of property keys to interpolated values at time t
+ * @returns Map of property keys to interpolated values at progress t
  */
 export function interpolateLayerProperties(
   layer: MotionLayer,

@@ -11,14 +11,45 @@ import { z } from 'zod';
 // 1. Enums & Constants
 // ============================================================================
 
-/** Closed enum of primitive layer types supported by PixiJS Render Engine */
-export const LAYER_TYPES = ['shape', 'path', 'icon', 'particle', 'image-ref'] as const;
+/** Closed enum of primitive layer types supported by PixiJS Render Engine (v1.2: added particle-system) */
+export const LAYER_TYPES = [
+  'shape',
+  'path',
+  'icon',
+  'particle',
+  'particle-system',
+  'image-ref',
+] as const;
 export const LayerTypeSchema = z.enum(LAYER_TYPES, {
   errorMap: () => ({
     message: `Invalid layer type. Expected one of: ${LAYER_TYPES.map((t) => `'${t}'`).join(', ')}.`,
   }),
 });
 export type LayerType = z.infer<typeof LayerTypeSchema>;
+
+/** Closed enum of supported shapes for shape layers */
+export const SUPPORTED_SHAPES = ['rect', 'circle', 'polygon', 'star'] as const;
+export const SUPPORTED_SHAPES_SET = new Set<string>(SUPPORTED_SHAPES);
+export const SupportedShapeSchema = z.enum(SUPPORTED_SHAPES, {
+  errorMap: () => ({
+    message: `Invalid shape. Expected one of: ${SUPPORTED_SHAPES.map((s) => `'${s}'`).join(', ')}.`,
+  }),
+});
+export type SupportedShape = z.infer<typeof SupportedShapeSchema>;
+
+/** Closed enum of procedural particle motion patterns (v1.2) */
+export const PARTICLE_MOTION_PATTERNS = [
+  'float-up-wrap',
+  'orbit-center',
+  'drift-random',
+  'fall-wrap',
+] as const;
+export const ParticleMotionPatternSchema = z.enum(PARTICLE_MOTION_PATTERNS, {
+  errorMap: () => ({
+    message: `Invalid motionPattern. Expected one of: ${PARTICLE_MOTION_PATTERNS.map((p) => `'${p}'`).join(', ')}.`,
+  }),
+});
+export type ParticleMotionPattern = z.infer<typeof ParticleMotionPatternSchema>;
 
 /** Closed enum of easing functions mapped to PixiJS/GSAP easing implementations */
 export const EASING_FUNCTIONS = [
@@ -51,6 +82,21 @@ export const RulesAnimationLevelSchema = z.enum(RULES_ANIMATION_LEVELS, {
 });
 export type RulesAnimationLevel = z.infer<typeof RulesAnimationLevelSchema>;
 
+/** Closed enum of supported aspect ratios (v1.3) */
+export const ASPECT_RATIOS = ['16:9', '9:16', '1:1'] as const;
+export const AspectRatioSchema = z.enum(ASPECT_RATIOS, {
+  errorMap: () => ({
+    message: `Invalid aspect ratio. Expected one of: ${ASPECT_RATIOS.map((r) => `'${r}'`).join(', ')}.`,
+  }),
+});
+export type AspectRatio = z.infer<typeof AspectRatioSchema>;
+
+export const ASPECT_RATIO_DIMENSIONS: Record<AspectRatio, { width: number; height: number }> = {
+  '16:9': { width: 1920, height: 1080 },
+  '9:16': { width: 1080, height: 1920 },
+  '1:1': { width: 1080, height: 1080 },
+};
+
 // ============================================================================
 // 2. Sub-Schemas
 // ============================================================================
@@ -80,14 +126,15 @@ export const LoopSchema = z.object({
 });
 export type LoopConfig = z.infer<typeof LoopSchema>;
 
-/** Keyframe definition */
+/** Keyframe definition (v1.1: t is normalized progress 0.0–1.0, not seconds) */
 export const MotionKeyframeSchema = z.object({
   t: z
     .number({
       required_error: 'Keyframe timestamp t is required',
       invalid_type_error: 'Keyframe timestamp t must be a number',
     })
-    .min(0, 'Keyframe timestamp t must be non-negative (>= 0)'),
+    .min(0, 'Keyframe progress t must be >= 0.0')
+    .max(1.0, 'Keyframe progress t must be <= 1.0 (normalized progress, not seconds)'),
   props: z.record(z.string(), z.unknown(), {
     required_error: 'Keyframe props object is required',
     invalid_type_error: 'Keyframe props must be an object of animated properties',
@@ -96,102 +143,232 @@ export const MotionKeyframeSchema = z.object({
 });
 export type MotionKeyframe = z.infer<typeof MotionKeyframeSchema>;
 
-/** Layer definition */
-export const MotionLayerSchema = z.object({
-  id: z
-    .string({
-      required_error: 'Layer id is required',
-      invalid_type_error: 'Layer id must be a string',
-    })
-    .min(1, 'Layer id must not be empty'),
-  type: LayerTypeSchema,
-  shape: z.string().optional(),
-  properties: z.record(z.string(), z.unknown(), {
-    required_error: 'Layer properties object is required',
-    invalid_type_error: 'Layer properties must be an object',
-  }),
-  keyframes: z
-    .array(MotionKeyframeSchema, {
-      required_error: 'Layer keyframes array is required',
-      invalid_type_error: 'Layer keyframes must be an array',
-    })
-    .min(1, 'Layer must contain at least 1 keyframe'),
+/** Allowed properties in keyframes[].props for path layers */
+export const ALLOWED_PATH_KEYFRAME_PROPS = [
+  'pathProgress',
+  'stroke',
+  'strokeWidth',
+  'fill',
+  'color',
+  'opacity',
+  'x',
+  'y',
+  'cx',
+  'cy',
+  'width',
+  'height',
+  'rotation',
+  'scale',
+  'scaleX',
+  'scaleY',
+  'path',
+  'pathData',
+] as const;
+export const ALLOWED_PATH_KEYFRAME_PROPS_SET = new Set<string>(ALLOWED_PATH_KEYFRAME_PROPS);
+
+/** Particle system emission/bounding area (v1.2) */
+export const ParticleSystemAreaSchema = z.object({
+  x: z.number({ required_error: 'area.x is required' }),
+  y: z.number({ required_error: 'area.y is required' }),
+  width: z.number({ required_error: 'area.width is required' }).positive('area.width must be positive'),
+  height: z.number({ required_error: 'area.height is required' }).positive('area.height must be positive'),
 });
+export type ParticleSystemArea = z.infer<typeof ParticleSystemAreaSchema>;
+
+/** Particle system layer properties schema (v1.2) */
+export const ParticleSystemPropertiesSchema = z.object({
+  count: z
+    .number({ required_error: 'count is required for particle-system' })
+    .int('count must be an integer')
+    .positive('count must be greater than 0'),
+  area: ParticleSystemAreaSchema,
+  sizeRange: z
+    .array(z.number().positive('Particle size in sizeRange must be positive'), {
+      required_error: 'sizeRange is required',
+    })
+    .length(2, 'sizeRange must contain exactly 2 numbers [min, max]'),
+  colorPalette: z
+    .array(z.string().min(1, 'Color string must not be empty'), {
+      required_error: 'colorPalette is required',
+    })
+    .min(1, 'colorPalette must contain at least 1 color'),
+  motionPattern: ParticleMotionPatternSchema,
+  speedRange: z
+    .array(z.number().positive('Particle speed in speedRange must be positive'), {
+      required_error: 'speedRange is required',
+    })
+    .length(2, 'speedRange must contain exactly 2 numbers [min, max]'),
+  seed: z
+    .number({ required_error: 'seed is required for particle-system' })
+    .int('seed must be an integer'),
+});
+export type ParticleSystemProperties = z.infer<typeof ParticleSystemPropertiesSchema>;
+
+/** Layer definition */
+export const MotionLayerSchema = z
+  .object({
+    id: z
+      .string({
+        required_error: 'Layer id is required',
+        invalid_type_error: 'Layer id must be a string',
+      })
+      .min(1, 'Layer id must not be empty'),
+    type: LayerTypeSchema,
+    shape: z.string().optional(),
+    properties: z.record(z.string(), z.unknown(), {
+      required_error: 'Layer properties object is required',
+      invalid_type_error: 'Layer properties must be an object',
+    }),
+    keyframes: z
+      .array(MotionKeyframeSchema, {
+        invalid_type_error: 'Layer keyframes must be an array',
+      })
+      .optional(),
+  })
+  .superRefine((layer, ctx) => {
+    // Non-particle-system layers require at least 1 keyframe
+    if (layer.type !== 'particle-system') {
+      if (!Array.isArray(layer.keyframes) || layer.keyframes.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Layer '${layer.id}' must contain at least 1 keyframe`,
+          path: ['keyframes'],
+        });
+      }
+    }
+
+    // Strict particle-system property validation
+    if (layer.type === 'particle-system') {
+      const parsedProps = ParticleSystemPropertiesSchema.safeParse(layer.properties);
+      if (!parsedProps.success) {
+        for (const issue of parsedProps.error.issues) {
+          ctx.addIssue({
+            ...issue,
+            path: ['properties', ...issue.path],
+          });
+        }
+      }
+    }
+
+    // Strict shape layer validation: closed enum of rect | circle | polygon | star
+    if (layer.type === 'shape') {
+      if (layer.shape !== undefined) {
+        const rawShape = layer.shape.trim().toLowerCase();
+        if (rawShape === 'hexagon') {
+          ctx.addIssue({
+            code: 'custom',
+            message: `Shape 'hexagon' tidak didukung. Gunakan shape: 'polygon' dengan properti 'sides: 6' untuk membuat hexagon.`,
+            path: ['shape'],
+          });
+        } else if (rawShape === 'pentagon') {
+          ctx.addIssue({
+            code: 'custom',
+            message: `Shape 'pentagon' tidak didukung. Gunakan shape: 'polygon' dengan properti 'sides: 5' untuk membuat pentagon.`,
+            path: ['shape'],
+          });
+        } else if (rawShape === 'octagon') {
+          ctx.addIssue({
+            code: 'custom',
+            message: `Shape 'octagon' tidak didukung. Gunakan shape: 'polygon' dengan properti 'sides: 8' untuk membuat octagon.`,
+            path: ['shape'],
+          });
+        } else if (rawShape === 'triangle') {
+          ctx.addIssue({
+            code: 'custom',
+            message: `Shape 'triangle' tidak didukung. Gunakan shape: 'polygon' dengan properti 'sides: 3' untuk membuat triangle.`,
+            path: ['shape'],
+          });
+        } else if (!SUPPORTED_SHAPES_SET.has(rawShape)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `Shape '${layer.shape}' tidak didukung. Pilihan yang valid hanya: ${SUPPORTED_SHAPES.map((s) => `'${s}'`).join(', ')}. Untuk poligon bersisi-N, gunakan shape: 'polygon' dengan properti 'sides: N'.`,
+            path: ['shape'],
+          });
+        }
+      }
+    }
+
+    // Strict path layer validation: only pathProgress and general visual/transform props are permitted
+    if (layer.type === 'path') {
+      if (Array.isArray(layer.keyframes)) {
+        layer.keyframes.forEach((kf, kfIdx) => {
+          if (kf.props && typeof kf.props === 'object') {
+            for (const propKey of Object.keys(kf.props)) {
+              if (!ALLOWED_PATH_KEYFRAME_PROPS_SET.has(propKey)) {
+                ctx.addIssue({
+                  code: 'custom',
+                  message: `Layer '${layer.id}' (type: path) menggunakan properti '${propKey}' yang tidak didukung. Instruction: Gunakan 'pathProgress' (0-1) untuk animasi progresif path.`,
+                  path: ['keyframes', kfIdx, 'props', propKey],
+                });
+              } else if (propKey === 'pathProgress' && typeof kf.props[propKey] !== 'number') {
+                ctx.addIssue({
+                  code: 'custom',
+                  message: `Layer '${layer.id}' properti 'pathProgress' harus berupa angka (0-1). Instruction: Pastikan nilai pathProgress adalah angka antara 0.0 dan 1.0.`,
+                  path: ['keyframes', kfIdx, 'props', 'pathProgress'],
+                });
+              }
+            }
+          }
+        });
+      }
+    }
+  });
 export type MotionLayer = z.infer<typeof MotionLayerSchema>;
 
 // ============================================================================
 // 3. Motion Blueprint Schema
 // ============================================================================
 
-export const MotionBlueprintSchema = z
-  .object({
-    blueprintId: z
-      .string({
-        required_error: 'blueprintId is required',
-        invalid_type_error: 'blueprintId must be a string',
-      })
-      .min(1, 'blueprintId must not be empty'),
-    category: z
-      .string({
-        required_error: 'category is required',
-        invalid_type_error: 'category must be a string',
-      })
-      .min(1, 'category must not be empty'),
-    canvas: CanvasSchema,
-    durationSec: z
-      .number({
-        required_error: 'durationSec is required',
-        invalid_type_error: 'durationSec must be a number',
-      })
-      .positive('durationSec must be greater than 0'),
-    fps: z
-      .number({
-        required_error: 'fps is required',
-        invalid_type_error: 'fps must be an integer',
-      })
-      .int('fps must be an integer')
-      .positive('fps must be greater than 0'),
-    palette: z
-      .array(z.string().min(1, 'Color string in palette must not be empty'), {
-        required_error: 'palette is required',
-        invalid_type_error: 'palette must be an array of color strings',
-      })
-      .min(1, 'palette must contain at least 1 color string'),
-    layers: z
-      .array(MotionLayerSchema, {
-        required_error: 'layers is required',
-        invalid_type_error: 'layers must be an array of layers',
-      })
-      .min(1, 'layers must contain at least 1 layer'),
-    loop: LoopSchema,
-    rulesLevel: RulesAnimationLevelSchema,
-    introOutro: z.boolean({
-      required_error: 'introOutro boolean is required',
-      invalid_type_error: 'introOutro must be a boolean',
-    }),
-    noText: z.boolean({
-      required_error: 'noText boolean is required',
-      invalid_type_error: 'noText must be a boolean',
-    }),
-  })
-  .superRefine((data, ctx) => {
-    // Cross-field validation: keyframe timestamps must not exceed durationSec
-    if (Array.isArray(data.layers)) {
-      data.layers.forEach((layer, layerIdx) => {
-        if (Array.isArray(layer.keyframes)) {
-          layer.keyframes.forEach((kf, kfIdx) => {
-            if (typeof kf.t === 'number' && kf.t > data.durationSec) {
-              ctx.addIssue({
-                code: 'custom',
-                message: `Keyframe timestamp t (${kf.t}s) exceeds blueprint durationSec (${data.durationSec}s). Instruction: Ensure all keyframe timestamps are between 0 and durationSec.`,
-                path: ['layers', layerIdx, 'keyframes', kfIdx, 't'],
-              });
-            }
-          });
-        }
-      });
-    }
-  });
+/**
+ * Motion Blueprint Schema (v1.1)
+ *
+ * durationSec removed — keyframe t is normalized progress 0.0–1.0.
+ * Duration is purely a UI parameter (Time Remap) applied at render time.
+ */
+export const MotionBlueprintSchema = z.object({
+  blueprintId: z
+    .string({
+      required_error: 'blueprintId is required',
+      invalid_type_error: 'blueprintId must be a string',
+    })
+    .min(1, 'blueprintId must not be empty'),
+  category: z
+    .string({
+      required_error: 'category is required',
+      invalid_type_error: 'category must be a string',
+    })
+    .min(1, 'category must not be empty'),
+  canvas: CanvasSchema,
+  fps: z
+    .number({
+      required_error: 'fps is required',
+      invalid_type_error: 'fps must be an integer',
+    })
+    .int('fps must be an integer')
+    .positive('fps must be greater than 0'),
+  palette: z
+    .array(z.string().min(1, 'Color string in palette must not be empty'), {
+      required_error: 'palette is required',
+      invalid_type_error: 'palette must be an array of color strings',
+    })
+    .min(1, 'palette must contain at least 1 color string'),
+  layers: z
+    .array(MotionLayerSchema, {
+      required_error: 'layers is required',
+      invalid_type_error: 'layers must be an array of layers',
+    })
+    .min(1, 'layers must contain at least 1 layer'),
+  loop: LoopSchema,
+  rulesLevel: RulesAnimationLevelSchema,
+  introOutro: z.boolean({
+    required_error: 'introOutro boolean is required',
+    invalid_type_error: 'introOutro must be a boolean',
+  }),
+  noText: z.boolean({
+    required_error: 'noText boolean is required',
+    invalid_type_error: 'noText must be a boolean',
+  }),
+});
 
 export type MotionBlueprint = z.infer<typeof MotionBlueprintSchema>;
 
@@ -251,16 +428,22 @@ export function formatZodIssue(issue: z.ZodIssue): string {
   return `[${pathStr}]: ${issue.message}. Instruction: Correct this field to match the Motion Blueprint specification.`;
 }
 
+export interface ValidateMotionBlueprintOptions {
+  checkLoop?: boolean;
+  expectedAspectRatio?: AspectRatio;
+  expectedDimensions?: { width: number; height: number };
+}
+
 /**
  * Validate an unknown data object against the official Motion Blueprint schema.
  *
  * @param data The JSON object to validate (from Gemini API, DB, or file).
- * @param options Optional settings (e.g. checkLoop to validate loop consistency).
+ * @param options Optional settings (e.g. checkLoop to validate loop consistency, expectedAspectRatio/expectedDimensions).
  * @returns { valid: true, blueprint } on success, or { valid: false, errors: string[] } with actionable error messages.
  */
 export function validateMotionBlueprint(
   data: unknown,
-  options?: { checkLoop?: boolean },
+  options?: ValidateMotionBlueprintOptions,
 ): ValidateMotionBlueprintResult {
   if (data === null || typeof data !== 'object') {
     return {
@@ -276,8 +459,27 @@ export function validateMotionBlueprint(
   const parseResult = MotionBlueprintSchema.safeParse(data);
 
   if (parseResult.success) {
+    const blueprint = parseResult.data;
+
+    // Check aspect ratio / canvas dimensions constraint
+    const expected =
+      options?.expectedDimensions ??
+      (options?.expectedAspectRatio ? ASPECT_RATIO_DIMENSIONS[options.expectedAspectRatio] : undefined);
+
+    if (expected) {
+      if (blueprint.canvas.width !== expected.width || blueprint.canvas.height !== expected.height) {
+        const ratioLabel = options?.expectedAspectRatio ? ` for aspect ratio ${options.expectedAspectRatio}` : '';
+        return {
+          valid: false,
+          errors: [
+            `[canvas]: Canvas dimensions [${blueprint.canvas.width}x${blueprint.canvas.height}] do not match required dimensions [${expected.width}x${expected.height}]${ratioLabel}. Instruction: You MUST set "canvas": { "width": ${expected.width}, "height": ${expected.height} }.`,
+          ],
+        };
+      }
+    }
+
     if (options?.checkLoop) {
-      const loopCheck = checkLoopConsistency(parseResult.data);
+      const loopCheck = checkLoopConsistency(blueprint);
       if (!loopCheck.seamless) {
         return {
           valid: false,
@@ -288,7 +490,7 @@ export function validateMotionBlueprint(
 
     return {
       valid: true,
-      blueprint: parseResult.data,
+      blueprint,
     };
   }
 
@@ -352,7 +554,7 @@ const ROTATION_LOOP_PROPERTIES = new Set(['rotation', 'angle']);
  * Validates that a Motion Blueprint with loop.seamless === true has matching
  * start and end values for all animated properties across all layers.
  *
- * Compares property values at t = 0 vs t = durationSec (effective value from keyframes):
+ * v1.1: Compares property values at t = 0.0 vs t = 1.0 (normalized progress):
  * - opacity, scale, pathProgress: tolerance ±0.02
  * - pixel-scale properties (x, y, cx, cy, radius, width, height, etc.): tolerance ±2 px
  * - rotation: tolerance ±2 degrees (with modulo 360° / 2pi revolution logic)
@@ -367,7 +569,7 @@ export function checkLoopConsistency(blueprint: MotionBlueprint): LoopConsistenc
   }
 
   const errors: string[] = [];
-  const duration = blueprint.durationSec;
+  const endProgress = 1.0;
 
   for (const layer of blueprint.layers ?? []) {
     if (!Array.isArray(layer.keyframes) || layer.keyframes.length === 0) {
@@ -400,16 +602,16 @@ export function checkLoopConsistency(blueprint: MotionBlueprint): LoopConsistenc
         valStart = firstWithProp ? firstWithProp.props[prop] : undefined;
       }
 
-      // 2. Determine effective value at t = durationSec
+      // 2. Determine effective value at t = 1.0 (end of normalized cycle)
       let valEnd: unknown;
-      const kfAtEnd = sortedKfs.find((kf) => kf.t === duration && kf.props && prop in kf.props);
+      const kfAtEnd = sortedKfs.find((kf) => kf.t === endProgress && kf.props && prop in kf.props);
       if (kfAtEnd) {
         valEnd = kfAtEnd.props[prop];
       } else {
-        // Last keyframe at or before durationSec
+        // Last keyframe at or before 1.0
         const lastWithProp = [...sortedKfs]
           .reverse()
-          .find((kf) => kf.t <= duration && kf.props && prop in kf.props);
+          .find((kf) => kf.t <= endProgress && kf.props && prop in kf.props);
         valEnd = lastWithProp ? lastWithProp.props[prop] : valStart;
       }
 
@@ -453,7 +655,7 @@ export function checkLoopConsistency(blueprint: MotionBlueprint): LoopConsistenc
 
       if (isMismatch) {
         errors.push(
-          `Layer '${layer.id}' tidak seamless: ${prop} di t=0 (${String(valStart)}) tidak sama dengan t=${duration} (${String(valEnd)})`,
+          `Layer '${layer.id}' tidak seamless: ${prop} di t=0 (${String(valStart)}) tidak sama dengan t=1.0 (${String(valEnd)})`,
         );
       }
     }

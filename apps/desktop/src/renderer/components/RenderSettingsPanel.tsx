@@ -8,11 +8,14 @@ import { useRenderSettingsStore } from '../store/renderSettingsStore';
 export function RenderSettingsPanel() {
   const {
     timeAnim,
+    aspectRatio,
     noText,
     backgroundAnimations,
     greenScreen,
     introOutro,
     rulesLevel,
+    setTimeAnim,
+    setAspectRatio,
     toggleNoText,
     toggleBackgroundAnimations,
     toggleGreenScreen,
@@ -27,14 +30,87 @@ export function RenderSettingsPanel() {
         RENDER SETTINGS
       </h2>
 
-      {/* Time Anim */}
-      <div className="glass-card p-3 flex flex-col items-center gap-1">
+      {/* Aspect Ratio Selector (16:9, 9:16, 1:1) — v1.3 */}
+      <div className="glass-card p-2.5 flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">
+            Aspect Ratio
+          </span>
+          <span className="text-[9px] text-[var(--color-accent-preview)] font-mono font-semibold">
+            {aspectRatio === '16:9' ? '1920×1080' : aspectRatio === '9:16' ? '1080×1920' : '1080×1080'}
+          </span>
+        </div>
+        <div className="flex gap-1 w-full">
+          {(['16:9', '9:16', '1:1'] as const).map((ratio) => (
+            <button
+              key={ratio}
+              type="button"
+              onClick={() => setAspectRatio(ratio)}
+              className={`chip flex-1 text-[11px] font-bold py-1 text-center justify-center cursor-pointer transition-all ${
+                aspectRatio === ratio ? 'active shadow-sm' : ''
+              }`}
+            >
+              {ratio}
+            </button>
+          ))}
+        </div>
+        <span className="text-[9px] text-[var(--color-text-muted)] text-center font-sans">
+          {aspectRatio === '16:9' ? 'Landscape (YouTube / Stock)' : aspectRatio === '9:16' ? 'Portrait (Reels / TikTok)' : 'Square (Post / Feed)'}
+        </span>
+      </div>
+
+      {/* Time Anim (sec) — v1.1 Time Remap scaling parameter */}
+      <div className="glass-card p-3 flex flex-col items-center gap-2">
         <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">
           Time Anim (sec)
         </span>
-        <span className="text-3xl font-extrabold text-[var(--color-text-primary)] font-[var(--font-display)]">
-          {timeAnim}
-        </span>
+        <div className="flex items-center justify-center gap-2 w-full">
+          <button
+            type="button"
+            onClick={() => setTimeAnim(Math.max(1, timeAnim - 1))}
+            className="w-7 h-7 rounded bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border-accent)] text-white border border-[var(--color-border-subtle)] cursor-pointer flex items-center justify-center text-sm font-bold transition-colors"
+            title="Kurangi 1 detik"
+          >
+            -
+          </button>
+          <div className="flex items-center justify-center">
+            <input
+              type="number"
+              min={1}
+              max={120}
+              value={timeAnim}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val > 0) {
+                  setTimeAnim(val);
+                }
+              }}
+              className="w-14 bg-transparent text-center text-3xl font-extrabold text-[var(--color-text-primary)] font-[var(--font-display)] border-b border-transparent hover:border-[var(--color-accent-preview)] focus:border-[var(--color-accent-preview)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setTimeAnim(Math.min(120, timeAnim + 1))}
+            className="w-7 h-7 rounded bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border-accent)] text-white border border-[var(--color-border-subtle)] cursor-pointer flex items-center justify-center text-sm font-bold transition-colors"
+            title="Tambah 1 detik"
+          >
+            +
+          </button>
+        </div>
+        <div className="flex gap-1 w-full justify-center">
+          {[5, 10, 15, 20, 30].map((sec) => (
+            <button
+              key={sec}
+              type="button"
+              onClick={() => setTimeAnim(sec)}
+              className={`chip text-[10px] py-0.5 px-1.5 cursor-pointer ${
+                timeAnim === sec ? 'active' : ''
+              }`}
+            >
+              {sec}s
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* No Text Toggle */}
