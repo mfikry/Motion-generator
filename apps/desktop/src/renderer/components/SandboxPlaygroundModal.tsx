@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSandboxStore } from '../store/sandboxStore';
 import { analyzeCodeSafety } from '../sandbox/static-analyzer';
-import { executeSandboxedCode } from '../sandbox/sandbox-runner';
 import { SandboxedCodeExecutor } from '../sandbox/sandboxed-code-executor';
 import {
   PULSING_CIRCLE_CODE,
@@ -109,7 +108,9 @@ export function SandboxPlaygroundModal() {
 
   // Initialize host executor
   useEffect(() => {
-    executorRef.current = new SandboxedCodeExecutor({ defaultTimeoutMs: 50 });
+    const executor = new SandboxedCodeExecutor({ defaultTimeoutMs: 1000 });
+    executor.warmup();
+    executorRef.current = executor;
     return () => {
       executorRef.current?.dispose();
       executorRef.current = null;
@@ -152,7 +153,7 @@ export function SandboxPlaygroundModal() {
         return;
       }
 
-      // Step 2: Execution in Sandboxed Worker or Sandbox Runner with 50ms Watchdog Guard
+      // Step 2: Execution in Sandboxed Worker with Watchdog Guard
       try {
         if (executorRef.current) {
           const result = await executorRef.current.executeFrame({
@@ -161,15 +162,15 @@ export function SandboxPlaygroundModal() {
             width: 360,
             height: 360,
             opts: { seed: 1337 },
-            timeoutMs: 50,
+            timeoutMs: 1000,
           });
 
           if (!result.success) {
             setStatus('REJECTED');
             if (result.timedOut) {
-              setStatusReason('DITOLAK: Watchdog Timeout Guard (> 50ms) — Worker Dihentikan Paksa');
+              setStatusReason('DITOLAK: Watchdog Timeout Guard (> 1000ms) — Worker Dihentikan Paksa');
               setErrorDetails([
-                result.error || 'Eksekusi fungsi drawFrame() melebihi batas waktu aman 50ms.',
+                result.error || 'Eksekusi fungsi drawFrame() melebihi batas waktu aman.',
                 'Worker di-terminate untuk mencegah thread freeze / infinite loop.',
               ]);
             } else {
@@ -185,7 +186,7 @@ export function SandboxPlaygroundModal() {
             return;
           }
 
-          // Render result to preview canvas
+          // Render result to preview canvas (only from sandboxed worker result)
           const canvas = canvasRef.current;
           if (canvas) {
             const ctx = canvas.getContext('2d');
@@ -195,9 +196,6 @@ export function SandboxPlaygroundModal() {
                 ctx.drawImage(result.imageBitmap, 0, 0, 360, 360);
               } else if (result.imageData) {
                 ctx.putImageData(result.imageData, 0, 0);
-              } else {
-                // Fallback direct draw
-                executeSandboxedCode(ctx, codeToTest, currentT, 360, 360, { seed: 1337 });
               }
             }
           }
@@ -211,6 +209,11 @@ export function SandboxPlaygroundModal() {
         setStatusReason('DITOLAK: Kesalahan Tidak Terduga');
         setErrorDetails([err instanceof Error ? err.message : String(err)]);
         setExecutionTimeMs(performance.now() - startTime);
+
+        if (canvasRef.current) {
+          const ctx = canvasRef.current.getContext('2d');
+          ctx?.clearRect(0, 0, 360, 360);
+        }
       }
     },
     []
@@ -320,6 +323,12 @@ export function SandboxPlaygroundModal() {
               onChange={(e) => {
                 setCode(e.target.value);
                 setActivePreset('custom');
+                if (status !== 'IDLE') {
+                  setStatus('IDLE');
+                  setStatusReason('');
+                  setErrorDetails([]);
+                  setExecutionTimeMs(null);
+                }
               }}
               className="flex-1 min-h-[300px] w-full p-3 font-mono text-xs bg-[#090712] border border-gray-800 rounded-lg text-emerald-300 focus:border-purple-500 focus:outline-none resize-none selection:bg-purple-900"
               placeholder="// Masukkan kode drawFrame di sini..."

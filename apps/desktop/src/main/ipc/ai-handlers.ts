@@ -9,9 +9,22 @@ import type { GenerateTextRequest } from '@genc/shared-types';
  * Called once during main process startup.
  */
 export function registerAiHandlers(): void {
-  // Generate Motion Blueprints from text prompt
-  ipcMain.handle(IPC_CHANNELS.AI_GENERATE_TEXT, async (_event, request: GenerateTextRequest) => {
-    return await generateBlueprintsFromText(request);
+  // Generate Canvas2D code from text prompt
+  ipcMain.handle(IPC_CHANNELS.AI_GENERATE_TEXT, async (event, request: GenerateTextRequest) => {
+    const validator = async (code: string) => {
+      try {
+        const script = `window.__sandboxedValidator ? window.__sandboxedValidator.validate(${JSON.stringify(code)}) : Promise.resolve({ valid: true })`;
+        const res = await event.sender.executeJavaScript(script);
+        return res as { valid: boolean; errors?: string[] };
+      } catch (err) {
+        return {
+          valid: false,
+          errors: [`Dry-run validator invocation failed: ${err instanceof Error ? err.message : String(err)}`],
+        };
+      }
+    };
+
+    return await generateBlueprintsFromText(request, validator);
   });
 
   // Retrieve recent generation history from SQLite

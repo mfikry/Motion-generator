@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   hardenWorkerGlobalScope,
   setupWorkerCommunication,
+  processWorkerExecution,
   DANGEROUS_WORKER_APIS,
 } from '../canvas-worker';
 
@@ -94,4 +95,54 @@ describe('Worker Global Scope Hardening (Layer 2 Defense)', () => {
       (fn as (url: string) => void)('https://evil.com');
     }).toThrow(TypeError);
   });
+
+  it('sanitizes 2D context state (transforms, globalAlpha, shadows) before every frame execution', () => {
+    const resetTransformSpy = vi.fn();
+    const clearRectSpy = vi.fn();
+
+    const mockCtx = {
+      globalAlpha: 0.2, // Leftover from previous frame
+      globalCompositeOperation: 'destination-out', // Leftover
+      shadowBlur: 30, // Leftover
+      shadowColor: 'red', // Leftover
+      filter: 'blur(5px)', // Leftover
+      lineWidth: 10,
+      strokeStyle: '#ff0000',
+      fillStyle: '#00ff00',
+      resetTransform: resetTransformSpy,
+      clearRect: clearRectSpy,
+      fillRect: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      getImageData: () => ({ data: new Uint8Array(16) }),
+    };
+
+    const canvasProvider = () => ({
+      canvas: { transferToImageBitmap: () => ({ close: () => {} } as unknown as ImageBitmap) },
+      ctx: mockCtx as unknown as CanvasRenderingContext2D,
+    });
+
+    const payload = {
+      id: 'test_sanitize_1',
+      code: 'ctx.fillRect(0, 0, 10, 10);',
+      t: 0.5,
+      width: 100,
+      height: 100,
+      returnImageData: true,
+    };
+
+    const response = processWorkerExecution(payload, canvasProvider);
+
+    expect(response.type).toBe('SUCCESS');
+    expect(resetTransformSpy).toHaveBeenCalled();
+    expect(clearRectSpy).toHaveBeenCalledWith(0, 0, 100, 100);
+    expect(mockCtx.globalAlpha).toBe(1.0);
+    expect(mockCtx.globalCompositeOperation).toBe('source-over');
+    expect(mockCtx.shadowBlur).toBe(0);
+    expect(mockCtx.shadowColor).toBe('transparent');
+    expect(mockCtx.filter).toBe('none');
+    expect(mockCtx.lineWidth).toBe(1);
+  });
 });
+

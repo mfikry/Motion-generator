@@ -118,6 +118,7 @@ export interface GenerateTextRequest {
 export interface GenerateTextResult {
   success: boolean;
   blueprints: MotionBlueprint[];
+  codes?: string[];
   totalTasks: number;
   completedTasks: number;
   error?: string;
@@ -133,7 +134,8 @@ export interface GenerationRecord {
   referenceImages: string | null;
   modelUsed: string;
   thinkingLevel: string;
-  blueprintJson: string;
+  blueprintJson?: string;
+  codeText?: string;
   tokenUsage: number | null;
   createdAt: string;
 }

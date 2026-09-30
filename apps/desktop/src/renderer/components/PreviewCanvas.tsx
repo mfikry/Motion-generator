@@ -1,43 +1,111 @@
 import { useEffect, useRef, useState } from 'react';
 import { ASPECT_RATIO_DIMENSIONS } from '@genc/shared-types';
+import { Canvas2DPreviewRenderer } from '../canvas/canvas2d-renderer';
 import { MotionPreviewRenderer } from '../canvas/pixi-renderer';
 import { useGenerationStore } from '../store/generationStore';
 import { useRenderSettingsStore } from '../store/renderSettingsStore';
 import { useCanvasPlaybackStore } from '../store/canvasPlaybackStore';
 
 /**
- * PreviewCanvas
+ * PreviewCanvas (v2.0)
  *
- * Hosts the PixiJS v8 WebGL Canvas for real-time Motion Blueprint preview.
+ * Primary Preview Engine: Canvas2D procedural execution with RAF playback.
+ * Fallback: PixiJS v8 WebGL Canvas for legacy Motion Blueprints.
+ *
  * Displays transparency checkerboard pattern when green screen is OFF.
- * v1.1: Duration sourced from renderSettingsStore.timeAnim (Time Remap).
- * v1.3: Aspect ratio preservation & viewport scaling (16:9, 9:16, 1:1).
+ * Duration sourced from renderSettingsStore.timeAnim.
+ * Aspect ratio preservation & viewport scaling (16:9, 9:16, 1:1).
  */
 export function PreviewCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const rendererRef = useRef<MotionPreviewRenderer | null>(null);
+  const canvas2dRendererRef = useRef<Canvas2DPreviewRenderer | null>(null);
+  const pixiRendererRef = useRef<MotionPreviewRenderer | null>(null);
   const [renderError, setRenderError] = useState<Error | null>(null);
 
-  // If an error occurred in the canvas renderer, throw it during render so CanvasErrorBoundary catches it
   if (renderError) {
     throw renderError;
   }
 
-  const { currentBlueprint } = useGenerationStore();
+  const { currentCode, currentBlueprint } = useGenerationStore();
   const { greenScreen, backgroundAnimations, timeAnim, aspectRatio } = useRenderSettingsStore();
   const { setCurrentTime, setDuration, setIsPlaying, setFps, setRendererInstance } =
     useCanvasPlaybackStore();
 
-  // Initialize PixiJS renderer
+  // Mode: Prefer Canvas2D (v2.0) if code is present or if no blueprint, otherwise PixiJS
+  const isCanvas2DMode = !!currentCode || !currentBlueprint;
+
+  // 1. Initialize Canvas2D Renderer
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !isCanvas2DMode) return;
+
+    let isMounted = true;
+    const renderer = new Canvas2DPreviewRenderer();
+    canvas2dRendererRef.current = renderer;
+
+    const dims = ASPECT_RATIO_DIMENSIONS[aspectRatio] ?? { width: 1080, height: 1080 };
+
+    const initCanvas2D = async () => {
+      if (!canvasRef.current) return;
+      try {
+        await renderer.init(
+          canvasRef.current,
+          currentCode || undefined,
+          { greenScreen },
+          {
+            onTimeUpdate: (t) => {
+              if (isMounted) setCurrentTime(t);
+            },
+            onPlaybackChange: (playing) => {
+              if (isMounted) setIsPlaying(playing);
+            },
+            onFpsUpdate: (fps) => {
+              if (isMounted) setFps(fps);
+            },
+            onEnded: () => {
+              if (isMounted) setIsPlaying(false);
+            },
+            onError: (err: Error) => {
+              if (isMounted) {
+                setRenderError(err);
+              }
+            },
+          }
+        );
+
+        if (isMounted) {
+          renderer.setTargetDimensions(dims.width, dims.height);
+          renderer.setDuration(timeAnim);
+          setDuration(timeAnim);
+          setRendererInstance(renderer);
+        }
+      } catch (err) {
+        console.error('Failed to initialize Canvas2D Preview Renderer:', err);
+        if (isMounted) {
+          setRenderError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    };
+
+    initCanvas2D();
+
+    return () => {
+      isMounted = false;
+      setRendererInstance(null);
+      renderer.destroy();
+      canvas2dRendererRef.current = null;
+    };
+  }, [isCanvas2DMode]);
+
+  // 2. Initialize PixiJS Renderer (fallback when only blueprint is present)
+  useEffect(() => {
+    if (!canvasRef.current || isCanvas2DMode) return;
 
     let isMounted = true;
     const renderer = new MotionPreviewRenderer();
-    rendererRef.current = renderer;
+    pixiRendererRef.current = renderer;
 
-    const initRenderer = async () => {
+    const initPixi = async () => {
       if (!canvasRef.current) return;
       try {
         await renderer.init(
@@ -57,12 +125,11 @@ export function PreviewCanvas() {
             onEnded: () => {
               if (isMounted) setIsPlaying(false);
             },
-          },
+          }
         );
 
         if (isMounted) {
           setRendererInstance(renderer);
-          // v1.1: Duration from UI timeAnim, not blueprint
           renderer.setDuration(timeAnim);
           setDuration(timeAnim);
         }
@@ -74,42 +141,39 @@ export function PreviewCanvas() {
       }
     };
 
-    initRenderer();
-
-    // Resize observer
-    const container = containerRef.current;
-    let resizeObserver: ResizeObserver | null = null;
-    if (container) {
-      resizeObserver = new ResizeObserver((entries) => {
-        const entry = entries[0];
-        if (entry && rendererRef.current) {
-          const { width, height } = entry.contentRect;
-          if (width > 0 && height > 0) {
-            rendererRef.current.resize(width, height);
-          }
-        }
-      });
-      resizeObserver.observe(container);
-    }
+    initPixi();
 
     return () => {
       isMounted = false;
-      if (resizeObserver && container) {
-        resizeObserver.unobserve(container);
-      }
       setRendererInstance(null);
       renderer.destroy();
-      rendererRef.current = null;
+      pixiRendererRef.current = null;
     };
-  }, []);
+  }, [isCanvas2DMode]);
 
-  // Update blueprint when changed
+  // Load new Canvas2D code
   useEffect(() => {
-    if (rendererRef.current && currentBlueprint) {
+    if (canvas2dRendererRef.current && currentCode) {
       try {
-        rendererRef.current.loadBlueprint(currentBlueprint);
-        // v1.1: Duration from UI timeAnim, not blueprint
-        rendererRef.current.setDuration(timeAnim);
+        canvas2dRendererRef.current.loadCode(currentCode);
+        canvas2dRendererRef.current.setDuration(timeAnim);
+        setDuration(timeAnim);
+        setCurrentTime(0);
+        setIsPlaying(false);
+        setRenderError(null);
+      } catch (err) {
+        console.error('Failed to load Canvas2D code into renderer:', err);
+        setRenderError(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+  }, [currentCode, setCurrentTime, setDuration, setIsPlaying]);
+
+  // Load new PixiJS Blueprint
+  useEffect(() => {
+    if (pixiRendererRef.current && currentBlueprint && !isCanvas2DMode) {
+      try {
+        pixiRendererRef.current.loadBlueprint(currentBlueprint);
+        pixiRendererRef.current.setDuration(timeAnim);
         setDuration(timeAnim);
         setCurrentTime(0);
         setIsPlaying(false);
@@ -119,33 +183,40 @@ export function PreviewCanvas() {
         setRenderError(err instanceof Error ? err : new Error(String(err)));
       }
     }
-  }, [currentBlueprint, setCurrentTime, setDuration, setIsPlaying]);
+  }, [currentBlueprint, isCanvas2DMode, setCurrentTime, setDuration, setIsPlaying]);
 
-  // v1.1: React to timeAnim changes — re-render with new time scale, no re-generate
+  // React to timeAnim changes
   useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.setDuration(timeAnim);
+    if (canvas2dRendererRef.current) {
+      canvas2dRendererRef.current.setDuration(timeAnim);
+      setDuration(timeAnim);
+    }
+    if (pixiRendererRef.current) {
+      pixiRendererRef.current.setDuration(timeAnim);
       setDuration(timeAnim);
     }
   }, [timeAnim, setDuration]);
 
-  // v1.3: React to aspectRatio changes — update viewport scale and target boundary
+  // React to aspectRatio changes
   useEffect(() => {
-    if (rendererRef.current) {
-      const dims = ASPECT_RATIO_DIMENSIONS[aspectRatio];
-      if (dims) {
-        rendererRef.current.setTargetDimensions(dims.width, dims.height);
+    const dims = ASPECT_RATIO_DIMENSIONS[aspectRatio];
+    if (dims) {
+      if (canvas2dRendererRef.current) {
+        canvas2dRendererRef.current.setTargetDimensions(dims.width, dims.height);
+      }
+      if (pixiRendererRef.current) {
+        pixiRendererRef.current.setTargetDimensions(dims.width, dims.height);
       }
     }
   }, [aspectRatio]);
 
-  // Update render options (Green Screen, Background Animations)
+  // Update render options (Green Screen)
   useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.updateSettings({
-        greenScreen,
-        backgroundAnimations,
-      });
+    if (canvas2dRendererRef.current) {
+      canvas2dRendererRef.current.updateSettings({ greenScreen });
+    }
+    if (pixiRendererRef.current) {
+      pixiRendererRef.current.updateSettings({ greenScreen, backgroundAnimations });
     }
   }, [greenScreen, backgroundAnimations]);
 

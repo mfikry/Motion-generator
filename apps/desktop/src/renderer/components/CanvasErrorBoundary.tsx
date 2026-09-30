@@ -53,7 +53,7 @@ export class CanvasErrorBoundary extends Component<Props, State> {
                 Gagal Me-render Preview
               </h4>
               <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-0">
-                Terjadi kendala saat menerjemahkan Motion Blueprint ke engine PixiJS.
+                Terjadi kesalahan runtime saat mengeksekusi kode Canvas2D / engine render.
               </p>
             </div>
 

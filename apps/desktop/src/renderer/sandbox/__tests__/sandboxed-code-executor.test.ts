@@ -10,6 +10,7 @@ import {
   MALICIOUS_SAMPLES,
 } from '../sample-codes';
 import { WorkerExecutePayload } from '../types';
+import { processWorkerExecution } from '../canvas-worker';
 
 /**
  * Creates a controllable mock Worker adapter for testing executor mechanics,
@@ -332,6 +333,76 @@ describe('Sandboxed Code Executor Host Controller (sandboxed-code-executor.ts)',
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('disposed');
+    });
+
+    it('rejects mid-execution crash (draws background and circle, then throws TypeError on null access) with success: false', async () => {
+      const failingCode = `
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, width, height);
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2, 50, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Deliberate runtime exception: null property access
+        const target = null;
+        target.someProperty;
+
+        // Unreached trailing code (red box)
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(10, 10, 50, 50);
+      `;
+
+      let unreachedExecuted = false;
+      const mockCanvasCtx = {
+        fillStyle: '',
+        fillRect: vi.fn((_x, _y, _w, _h) => {
+          if (mockCanvasCtx.fillStyle === '#ff0000') {
+            unreachedExecuted = true;
+          }
+        }),
+        beginPath: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+        clearRect: vi.fn(),
+        getImageData: vi.fn(),
+      };
+
+      const executor = new SandboxedCodeExecutor({
+        workerFactory: () => {
+          const adapter: IWorkerAdapter = {
+            onmessage: null,
+            onerror: null,
+            terminate: vi.fn(),
+            postMessage: (payload: WorkerExecutePayload) => {
+              // Simulates canvas-worker processWorkerExecution
+              const res = processWorkerExecution(payload, () => ({
+                canvas: { transferToImageBitmap: vi.fn() },
+                ctx: mockCanvasCtx as unknown as CanvasRenderingContext2D,
+              }));
+              setTimeout(() => {
+                adapter.onmessage?.({ data: res });
+              }, 5);
+            },
+          };
+          return adapter;
+        },
+      });
+
+      const result = await executor.executeFrame({
+        code: failingCode,
+        t: 0.5,
+        width: 360,
+        height: 360,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('TypeError');
+      expect(result.error).toContain('null');
+      expect(mockCanvasCtx.fillRect).toHaveBeenCalledWith(0, 0, 360, 360);
+      expect(mockCanvasCtx.arc).toHaveBeenCalledWith(180, 180, 50, 0, Math.PI * 2);
+      expect(unreachedExecuted).toBe(false);
+
+      executor.dispose();
     });
   });
 });

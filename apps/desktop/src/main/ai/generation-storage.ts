@@ -8,13 +8,14 @@ interface GenerationRow {
   reference_images: string | null;
   model_used: string;
   thinking_level: string;
-  blueprint_json: string;
+  blueprint_json: string | null;
+  code_text: string | null;
   token_usage: number | null;
   created_at: string;
 }
 
 /**
- * Save a newly generated Motion Blueprint record into SQLite.
+ * Save a newly generated Canvas2D code or Motion Blueprint record into SQLite.
  */
 export function saveGeneration(record: GenerationRecord): void {
   const db = getDatabase();
@@ -22,8 +23,8 @@ export function saveGeneration(record: GenerationRecord): void {
     `
     INSERT INTO generations (
       id, project_id, prompt_text, reference_images, model_used,
-      thinking_level, blueprint_json, token_usage, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      thinking_level, blueprint_json, code_text, token_usage, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
   ).run(
     record.id,
@@ -32,7 +33,8 @@ export function saveGeneration(record: GenerationRecord): void {
     record.referenceImages,
     record.modelUsed,
     record.thinkingLevel,
-    record.blueprintJson,
+    record.blueprintJson ?? null,
+    record.codeText ?? null,
     record.tokenUsage,
     record.createdAt,
   );
@@ -47,7 +49,7 @@ export function listGenerations(limit = 20): GenerationRecord[] {
     .prepare(
       `
     SELECT id, project_id, prompt_text, reference_images, model_used,
-           thinking_level, blueprint_json, token_usage, created_at
+           thinking_level, blueprint_json, code_text, token_usage, created_at
     FROM generations
     ORDER BY created_at DESC
     LIMIT ?
@@ -62,7 +64,8 @@ export function listGenerations(limit = 20): GenerationRecord[] {
     referenceImages: row.reference_images,
     modelUsed: row.model_used,
     thinkingLevel: row.thinking_level,
-    blueprintJson: row.blueprint_json,
+    blueprintJson: row.blueprint_json ?? undefined,
+    codeText: row.code_text ?? undefined,
     tokenUsage: row.token_usage,
     createdAt: row.created_at,
   }));
@@ -77,7 +80,7 @@ export function getGenerationById(id: string): GenerationRecord | null {
     .prepare(
       `
     SELECT id, project_id, prompt_text, reference_images, model_used,
-           thinking_level, blueprint_json, token_usage, created_at
+           thinking_level, blueprint_json, code_text, token_usage, created_at
     FROM generations
     WHERE id = ?
   `,
@@ -93,8 +96,10 @@ export function getGenerationById(id: string): GenerationRecord | null {
     referenceImages: row.reference_images,
     modelUsed: row.model_used,
     thinkingLevel: row.thinking_level,
-    blueprintJson: row.blueprint_json,
+    blueprintJson: row.blueprint_json ?? undefined,
+    codeText: row.code_text ?? undefined,
     tokenUsage: row.token_usage,
     createdAt: row.created_at,
   };
 }
+

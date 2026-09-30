@@ -13,7 +13,8 @@ interface GenerationDbRecord {
   reference_images: string | null;
   model_used: string;
   thinking_level: string;
-  blueprint_json: string;
+  blueprint_json: string | null;
+  code_text: string | null;
   token_usage: number | null;
   created_at: string;
 }
@@ -123,6 +124,7 @@ export function createBetterSqliteMock() {
                 modelUsed,
                 thinkingLevel,
                 blueprintJson,
+                codeText,
                 tokenUsage,
                 createdAt,
               ] = params as [
@@ -132,7 +134,8 @@ export function createBetterSqliteMock() {
                 string | null,
                 string,
                 string,
-                string,
+                string | null,
+                string | null,
                 number | null,
                 string,
               ];
@@ -144,6 +147,7 @@ export function createBetterSqliteMock() {
                 model_used: modelUsed,
                 thinking_level: thinkingLevel,
                 blueprint_json: blueprintJson,
+                code_text: codeText,
                 token_usage: tokenUsage,
                 created_at: createdAt,
               });
@@ -153,14 +157,14 @@ export function createBetterSqliteMock() {
         }
 
         if (
-          cleanSql.startsWith('SELECT id, project_id, prompt_text') &&
+          cleanSql.startsWith('SELECT') &&
           cleanSql.includes('FROM generations') &&
           cleanSql.includes('ORDER BY created_at DESC')
         ) {
           return {
             all: (limit: number = 20) => {
               const sorted = [...tables.generations].sort((a, b) =>
-                b.created_at.localeCompare(a.created_at),
+                String(b.created_at).localeCompare(String(a.created_at)),
               );
               return sorted.slice(0, limit).map((r) => ({ ...r }));
             },
@@ -168,7 +172,7 @@ export function createBetterSqliteMock() {
         }
 
         if (
-          cleanSql.startsWith('SELECT id, project_id, prompt_text') &&
+          cleanSql.startsWith('SELECT') &&
           cleanSql.includes('FROM generations WHERE id = ?')
         ) {
           return {

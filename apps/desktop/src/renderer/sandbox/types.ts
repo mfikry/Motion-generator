@@ -42,6 +42,7 @@ export interface ExecuteFrameParams {
     [key: string]: unknown;
   };
   timeoutMs?: number;
+  returnImageData?: boolean;
 }
 
 export interface WorkerExecutePayload {
@@ -54,6 +55,7 @@ export interface WorkerExecutePayload {
     seed?: number;
     [key: string]: unknown;
   };
+  returnImageData?: boolean;
 }
 
 export interface WorkerSuccessPayload {
@@ -71,4 +73,8 @@ export interface WorkerErrorPayload {
   executionTimeMs: number;
 }
 
-export type WorkerResponse = WorkerSuccessPayload | WorkerErrorPayload;
+export interface WorkerReadyPayload {
+  type: 'READY';
+}
+
+export type WorkerResponse = WorkerSuccessPayload | WorkerErrorPayload | WorkerReadyPayload;

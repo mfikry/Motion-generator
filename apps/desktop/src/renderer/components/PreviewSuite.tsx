@@ -20,22 +20,25 @@ function formatTime(seconds: number): string {
  * Tab bar, canvas preview area / Blueprint Inspector, playback controls, status log.
  */
 export function PreviewSuite() {
-  const { currentBlueprint, statusMessage, isGenerating } = useGenerationStore();
+  const { currentBlueprint, currentCode, statusMessage, isGenerating } = useGenerationStore();
   const { currentTime, duration, isPlaying, fps, play, pause, seek, reset } =
     useCanvasPlaybackStore();
 
-  const [viewMode, setViewMode] = useState<'canvas' | 'summary' | 'json'>('canvas');
+  const [viewMode, setViewMode] = useState<'canvas' | 'summary' | 'code' | 'json'>('canvas');
   const [copied, setCopied] = useState(false);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const handleCopyJson = () => {
-    if (!currentBlueprint) return;
-    try {
+  const hasContent = !!(currentCode || currentBlueprint);
+
+  const handleCopy = () => {
+    if (currentCode) {
+      navigator.clipboard.writeText(currentCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else if (currentBlueprint) {
       navigator.clipboard.writeText(JSON.stringify(currentBlueprint, null, 2));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.warn('Failed to copy JSON:', err);
     }
   };
 
@@ -83,7 +86,7 @@ export function PreviewSuite() {
           </button>
         </div>
 
-        {/* View Mode Toggle: Canvas | Summary | Raw JSON */}
+        {/* View Mode Toggle: Canvas | Summary | Code / JSON */}
         <div className="flex items-center gap-1 bg-[var(--color-bg-elevated)] p-0.5 rounded-md border border-[var(--color-border-subtle)]">
           <button
             onClick={() => setViewMode('canvas')}
@@ -95,7 +98,7 @@ export function PreviewSuite() {
           >
             Canvas
           </button>
-          {currentBlueprint && (
+          {hasContent && (
             <>
               <button
                 onClick={() => setViewMode('summary')}
@@ -107,20 +110,33 @@ export function PreviewSuite() {
               >
                 Summary
               </button>
+              {currentCode ? (
+                <button
+                  onClick={() => setViewMode('code')}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded border-none cursor-pointer transition-colors ${
+                    viewMode === 'code'
+                      ? 'bg-[var(--color-btn-primary-from)] text-white'
+                      : 'bg-transparent text-[var(--color-text-muted)] hover:text-white'
+                  }`}
+                >
+                  Code
+                </button>
+              ) : (
+                <button
+                  onClick={() => setViewMode('json')}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded border-none cursor-pointer transition-colors ${
+                    viewMode === 'json'
+                      ? 'bg-[var(--color-btn-primary-from)] text-white'
+                      : 'bg-transparent text-[var(--color-text-muted)] hover:text-white'
+                  }`}
+                >
+                  Raw JSON
+                </button>
+              )}
               <button
-                onClick={() => setViewMode('json')}
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded border-none cursor-pointer transition-colors ${
-                  viewMode === 'json'
-                    ? 'bg-[var(--color-btn-primary-from)] text-white'
-                    : 'bg-transparent text-[var(--color-text-muted)] hover:text-white'
-                }`}
-              >
-                Raw JSON
-              </button>
-              <button
-                onClick={handleCopyJson}
+                onClick={handleCopy}
                 className="text-[10px] font-semibold px-1.5 py-0.5 rounded border-none bg-transparent text-[var(--color-accent-preview)] hover:text-white cursor-pointer ml-1"
-                title="Copy JSON to clipboard"
+                title={currentCode ? 'Copy Code to clipboard' : 'Copy JSON to clipboard'}
               >
                 {copied ? '✓ Copied' : '📋 Copy'}
               </button>
@@ -129,16 +145,16 @@ export function PreviewSuite() {
         </div>
       </div>
 
-      {/* Canvas Area / Blueprint Inspector */}
+      {/* Canvas Area / Inspector */}
       <div
         ref={canvasContainerRef}
         className="flex-1 mx-4 mt-3 rounded-xl overflow-hidden border border-[var(--color-border-subtle)] relative min-h-[280px] flex flex-col bg-[var(--color-bg-base)]"
       >
         {viewMode === 'canvas' ? (
-          /* Live WebGL PixiJS Canvas View */
+          /* Live Canvas View */
           <div className="relative flex-1 w-full h-full min-h-[280px]">
             <CanvasErrorBoundary
-              key={currentBlueprint?.blueprintId || 'empty'}
+              key={currentCode ? `code_${currentCode.length}` : currentBlueprint?.blueprintId || 'empty'}
               onReset={() => {
                 reset();
               }}
@@ -146,8 +162,8 @@ export function PreviewSuite() {
               <PreviewCanvas />
             </CanvasErrorBoundary>
 
-            {/* Empty state / Generating overlay when no blueprint is active */}
-            {!currentBlueprint && (
+            {/* Empty state / Generating overlay when no code/blueprint is active */}
+            {!hasContent && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                 <div className="text-white/40 text-center select-none px-6">
                   <p className="text-4xl font-extrabold m-0 tracking-wider font-[var(--font-display)] text-white/20">
@@ -155,15 +171,26 @@ export function PreviewSuite() {
                   </p>
                   <p className="text-xs font-semibold mt-2 text-[var(--color-text-secondary)]">
                     {isGenerating
-                      ? 'Sedang menghasilkan Motion Blueprint dari AI...'
+                      ? 'Sedang menghasilkan kode Canvas2D dari AI...'
                       : 'Masukkan prompt di panel AI Architect & klik Generate'}
                   </p>
                 </div>
               </div>
             )}
           </div>
+        ) : viewMode === 'code' && currentCode ? (
+          /* Canvas2D JavaScript Source Code View */
+          <div className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-[var(--color-accent-preview)] bg-[var(--color-bg-surface)]">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+              <span className="text-xs text-gray-400 font-semibold">drawFrame(ctx, t, width, height, opts)</span>
+              <span className="text-[10px] text-gray-500">{currentCode.length} characters</span>
+            </div>
+            <pre className="m-0 select-text whitespace-pre-wrap break-all text-gray-200">
+              <code>{currentCode}</code>
+            </pre>
+          </div>
         ) : viewMode === 'json' && currentBlueprint ? (
-          /* Raw JSON View */
+          /* Raw JSON View (Legacy) */
           <div className="flex-1 overflow-auto p-3 font-mono text-[11px] leading-relaxed text-[var(--color-accent-preview)] bg-[var(--color-bg-surface)]">
             <pre className="m-0 select-text whitespace-pre-wrap break-all">
               {(() => {
@@ -175,123 +202,156 @@ export function PreviewSuite() {
               })()}
             </pre>
           </div>
-        ) : currentBlueprint ? (
-          /* Structured Summary View */
-          <div className="flex-1 flex flex-col p-4 overflow-y-auto bg-[var(--color-bg-surface)] gap-3">
-            {/* Header Info */}
-            <div className="flex items-start justify-between gap-2 border-b border-[var(--color-border-subtle)] pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="badge badge-gold uppercase text-[10px] font-bold">
-                    {currentBlueprint.category}
-                  </span>
-                  <span className="badge badge-cyan text-[10px]">
-                    {currentBlueprint.canvas.width}x{currentBlueprint.canvas.height}
-                  </span>
-                  <span className="badge badge-green text-[10px]">
-                    {duration}s @ {currentBlueprint.fps} FPS
-                  </span>
+        ) : viewMode === 'summary' ? (
+          currentBlueprint ? (
+            /* Structured Summary View (Legacy Blueprint) */
+            <div className="flex-1 flex flex-col p-4 overflow-y-auto bg-[var(--color-bg-surface)] gap-3">
+              {/* Header Info */}
+              <div className="flex items-start justify-between gap-2 border-b border-[var(--color-border-subtle)] pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="badge badge-gold uppercase text-[10px] font-bold">
+                      {currentBlueprint.category}
+                    </span>
+                    <span className="badge badge-cyan text-[10px]">
+                      {currentBlueprint.canvas.width}x{currentBlueprint.canvas.height}
+                    </span>
+                    <span className="badge badge-green text-[10px]">
+                      {duration}s @ {currentBlueprint.fps} FPS
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white mt-1.5 m-0 font-[var(--font-display)]">
+                    Blueprint ID:{' '}
+                    <span className="font-mono text-xs text-[var(--color-text-accent)]">
+                      {currentBlueprint.blueprintId}
+                    </span>
+                  </h3>
                 </div>
-                <h3 className="text-sm font-bold text-white mt-1.5 m-0 font-[var(--font-display)]">
-                  Blueprint ID:{' '}
-                  <span className="font-mono text-xs text-[var(--color-text-accent)]">
-                    {currentBlueprint.blueprintId}
+
+                {/* Color Palette Swatches */}
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px] text-[var(--color-text-muted)] font-semibold uppercase">
+                    Palette ({currentBlueprint.palette.length})
                   </span>
-                </h3>
+                  <div className="flex gap-1">
+                    {currentBlueprint.palette.map((color, idx) => (
+                      <span
+                        key={idx}
+                        className="w-5 h-5 rounded border border-white/20 shadow-sm"
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              {/* Color Palette Swatches */}
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] text-[var(--color-text-muted)] font-semibold uppercase">
-                  Palette ({currentBlueprint.palette.length})
+              {/* Blueprint Attributes */}
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                <div className="glass-card p-2 bg-[var(--color-bg-card)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
+                    Layers
+                  </span>
+                  <strong className="text-white text-sm">{currentBlueprint.layers.length}</strong>
+                </div>
+                <div className="glass-card p-2 bg-[var(--color-bg-card)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
+                    Rules Level
+                  </span>
+                  <strong className="text-[var(--color-accent-ai)] text-sm uppercase">
+                    {currentBlueprint.rulesLevel}
+                  </strong>
+                </div>
+                <div className="glass-card p-2 bg-[var(--color-bg-card)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
+                    Loop Seamless
+                  </span>
+                  <strong className="text-emerald-400 text-sm">
+                    {currentBlueprint.loop.seamless ? 'YES' : 'NO'}
+                  </strong>
+                </div>
+                <div className="glass-card p-2 bg-[var(--color-bg-card)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
+                    No Text
+                  </span>
+                  <strong className="text-cyan-400 text-sm">
+                    {currentBlueprint.noText ? 'TRUE' : 'FALSE'}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Layers Breakdown */}
+              <div className="flex flex-col gap-1.5 mt-1">
+                <span className="text-[11px] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
+                  Daftar Layer Motion:
                 </span>
-                <div className="flex gap-1">
-                  {currentBlueprint.palette.map((color, idx) => (
-                    <span
-                      key={idx}
-                      className="w-5 h-5 rounded border border-white/20 shadow-sm"
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    />
+                <div className="flex flex-col gap-1.5">
+                  {currentBlueprint.layers.map((layer, idx) => (
+                    <div
+                      key={layer.id || idx}
+                      className="glass-card p-2.5 flex items-center justify-between text-xs bg-[var(--color-bg-elevated)] border-[var(--color-border-subtle)]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+                          #{idx + 1}
+                        </span>
+                        <span className="font-bold text-white">{layer.id}</span>
+                        <span className="badge badge-gold text-[9px] py-0 px-1.5 uppercase">
+                          {layer.type}
+                        </span>
+                        {layer.shape && (
+                          <span className="badge badge-cyan text-[9px] py-0 px-1.5">
+                            {layer.shape}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-secondary)]">
+                        <span>
+                          <strong className="text-white">{layer.keyframes?.length ?? 0}</strong> keyframes
+                        </span>
+                        {layer.keyframes?.[0]?.easing && (
+                          <span className="font-mono text-[10px] text-[var(--color-accent-preview)]">
+                            {layer.keyframes[0].easing}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
             </div>
-
-            {/* Blueprint Attributes */}
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
-              <div className="glass-card p-2 bg-[var(--color-bg-card)]">
-                <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
-                  Layers
-                </span>
-                <strong className="text-white text-sm">{currentBlueprint.layers.length}</strong>
-              </div>
-              <div className="glass-card p-2 bg-[var(--color-bg-card)]">
-                <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
-                  Rules Level
-                </span>
-                <strong className="text-[var(--color-accent-ai)] text-sm uppercase">
-                  {currentBlueprint.rulesLevel}
-                </strong>
-              </div>
-              <div className="glass-card p-2 bg-[var(--color-bg-card)]">
-                <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
-                  Loop Seamless
-                </span>
-                <strong className="text-emerald-400 text-sm">
-                  {currentBlueprint.loop.seamless ? 'YES' : 'NO'}
-                </strong>
-              </div>
-              <div className="glass-card p-2 bg-[var(--color-bg-card)]">
-                <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">
-                  No Text
-                </span>
-                <strong className="text-cyan-400 text-sm">
-                  {currentBlueprint.noText ? 'TRUE' : 'FALSE'}
-                </strong>
-              </div>
-            </div>
-
-            {/* Layers Breakdown */}
-            <div className="flex flex-col gap-1.5 mt-1">
-              <span className="text-[11px] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
-                Daftar Layer Motion:
-              </span>
-              <div className="flex flex-col gap-1.5">
-                {currentBlueprint.layers.map((layer, idx) => (
-                  <div
-                    key={layer.id || idx}
-                    className="glass-card p-2.5 flex items-center justify-between text-xs bg-[var(--color-bg-elevated)] border-[var(--color-border-subtle)]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
-                        #{idx + 1}
-                      </span>
-                      <span className="font-bold text-white">{layer.id}</span>
-                      <span className="badge badge-gold text-[9px] py-0 px-1.5 uppercase">
-                        {layer.type}
-                      </span>
-                      {layer.shape && (
-                        <span className="badge badge-cyan text-[9px] py-0 px-1.5">
-                          {layer.shape}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-secondary)]">
-                      <span>
-                        <strong className="text-white">{layer.keyframes?.length ?? 0}</strong> keyframes
-                      </span>
-                      {layer.keyframes?.[0]?.easing && (
-                        <span className="font-mono text-[10px] text-[var(--color-accent-preview)]">
-                          {layer.keyframes[0].easing}
-                        </span>
-                      )}
-                    </div>
+          ) : currentCode ? (
+            /* Canvas2D Code Summary View */
+            <div className="flex-1 flex flex-col p-4 overflow-y-auto bg-[var(--color-bg-surface)] gap-3">
+              <div className="flex items-start justify-between gap-2 border-b border-[var(--color-border-subtle)] pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="badge badge-gold uppercase text-[10px] font-bold">Canvas2D</span>
+                    <span className="badge badge-cyan text-[10px]">Procedural</span>
+                    <span className="badge badge-green text-[10px]">{duration}s @ {fps} FPS</span>
                   </div>
-                ))}
+                  <h3 className="text-sm font-bold text-white mt-1.5 m-0 font-[var(--font-display)]">
+                    Engine: <span className="text-[var(--color-text-accent)]">Sandboxed Canvas2D Worker</span>
+                  </h3>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="glass-card p-2 bg-[var(--color-bg-card)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">Looping</span>
+                  <strong className="text-emerald-400 text-sm">Seamless (Periodic)</strong>
+                </div>
+                <div className="glass-card p-2 bg-[var(--color-bg-card)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">Randomness</span>
+                  <strong className="text-[var(--color-accent-ai)] text-sm">opts.random() Mulberry32</strong>
+                </div>
+                <div className="glass-card p-2 bg-[var(--color-bg-card)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] block uppercase">Code Length</span>
+                  <strong className="text-cyan-400 text-sm">{currentCode.length} chars</strong>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null
         ) : null}
       </div>
 

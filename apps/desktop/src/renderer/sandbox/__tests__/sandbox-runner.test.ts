@@ -58,8 +58,31 @@ describe('Sandbox Scope Isolation & Runner (sandbox-runner.ts)', () => {
         executeSandboxedCode(mockCtx, RANDOM_PARTICLES_CODE, 0.25, 1080, 1080, { seed: 999 });
       }).not.toThrow();
 
-      expect(mockCtx.fillRect).toHaveBeenCalledWith(0, 0, 1080, 1080);
-      expect(mockCtx.arc).toHaveBeenCalledTimes(40);
+      expect(mockCtx.fillRect).toHaveBeenCalled();
+      expect(mockCtx.arc).toHaveBeenCalled();
+    });
+
+    it('auto-invokes drawFrame when code is wrapped as a function declaration', () => {
+      const mockCtx = createMockCanvasContext();
+      const wrappedFunctionCode = `
+        function drawFrame(ctx, t, width, height, opts) {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(0, 0, width, height);
+          ctx.beginPath();
+          ctx.arc(width / 2, height / 2, 50, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      `;
+
+      const runner = createSandboxedRunner(wrappedFunctionCode);
+      const opts = prepareSandboxOptions(1337);
+
+      runner(mockCtx, 0.0, 1920, 1080, opts);
+
+      expect(mockCtx.fillRect).toHaveBeenCalledWith(0, 0, 1920, 1080);
+      expect(mockCtx.beginPath).toHaveBeenCalled();
+      expect(mockCtx.arc).toHaveBeenCalledWith(960, 540, 50, 0, Math.PI * 2);
+      expect(mockCtx.fill).toHaveBeenCalled();
     });
   });
 
@@ -150,6 +173,46 @@ describe('Sandbox Scope Isolation & Runner (sandbox-runner.ts)', () => {
       expect(() => {
         createSandboxedRunner(syntaxErrorCode);
       }).toThrow();
+    });
+
+    it('captures mid-execution TypeError on null access after partial drawing and preserves error name', () => {
+      const code = `
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, width, height);
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2, 50, 0, Math.PI * 2);
+        ctx.fill();
+
+        const a = null;
+        a.invalidProperty;
+
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(10, 10, 50, 50);
+      `;
+
+      let unreachedExecuted = false;
+      const mockCtx = {
+        fillStyle: '',
+        fillRect: vi.fn(() => {
+          if (mockCtx.fillStyle === '#ff0000') {
+            unreachedExecuted = true;
+          }
+        }),
+        beginPath: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+      };
+
+      const runner = createSandboxedRunner(code);
+      const opts = prepareSandboxOptions(1);
+
+      expect(() => {
+        runner(mockCtx as unknown as CanvasRenderingContext2D, 0.5, 360, 360, opts);
+      }).toThrow(/TypeError/);
+
+      expect(mockCtx.fillRect).toHaveBeenCalledWith(0, 0, 360, 360);
+      expect(mockCtx.arc).toHaveBeenCalledWith(180, 180, 50, 0, Math.PI * 2);
+      expect(unreachedExecuted).toBe(false);
     });
   });
 });

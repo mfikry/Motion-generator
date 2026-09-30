@@ -7,6 +7,7 @@ import { RenderSettingsPanel } from './components/RenderSettingsPanel';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { SandboxPlaygroundModal } from './components/SandboxPlaygroundModal';
 import { useGenerationStore } from './store/generationStore';
+import { SPIRAL_GALAXY_CODE } from './fixtures/demo-spiral';
 import type { MotionBlueprint } from '@genc/shared-types';
 
 /**
@@ -107,6 +108,14 @@ export function App() {
           },
         ],
       });
+    } else if (demo === 'spiral') {
+      useGenerationStore.getState().setCurrentCode(SPIRAL_GALAXY_CODE);
+    } else if (demo === 'crash') {
+      useGenerationStore.getState().setCurrentCode(`
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(0, 0, width, height);
+        throw new Error('Simulated runtime error inside drawFrame: mid-execution crash');
+      `);
     }
   }, []);
   return (

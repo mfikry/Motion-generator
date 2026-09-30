@@ -103,6 +103,9 @@ export function createSandboxedRunner(code: string): DrawFrameFn {
     "use strict";
     return function(${parameterList.join(', ')}) {
       ${code}
+      if (typeof drawFrame === 'function') {
+        drawFrame(ctx, t, width, height, opts);
+      }
     };
   `;
 
@@ -132,7 +135,18 @@ export function createSandboxedRunner(code: string): DrawFrameFn {
     const safeMath = Object.create(Math) as Math;
     safeMath.random = opts.random;
 
-    innerFn(ctx, t, width, height, opts, safeMath, ...undefinedShadows);
+    try {
+      innerFn(ctx, t, width, height, opts, safeMath, ...undefinedShadows);
+    } catch (err) {
+      const errorName = err instanceof Error && err.name ? err.name : 'RuntimeError';
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const contextualError = new Error(`${errorName}: ${errorMsg}`);
+      contextualError.name = errorName;
+      if (err instanceof Error && err.stack) {
+        contextualError.stack = err.stack;
+      }
+      throw contextualError;
+    }
   };
 }
 

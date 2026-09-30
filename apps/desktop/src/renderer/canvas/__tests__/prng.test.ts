@@ -46,4 +46,53 @@ describe('Deterministic PRNG (Mulberry32) - @genc/desktop/canvas/prng', () => {
     // All choices should be sampled
     expect(counts.size).toBe(palette.length);
   });
+
+  it('generates consistent deterministic values when called with a specific seed', () => {
+    const prng = createPRNG(1337);
+    const valA1 = prng(42);
+    prng(); // advance sequential state
+    prng();
+    const valA2 = prng(42);
+    const valB = prng(999);
+
+    expect(valA1).toBe(valA2);
+    expect(valA1).not.toBe(valB);
+    expect(valA1).toBeGreaterThanOrEqual(0);
+    expect(valA1).toBeLessThan(1);
+  });
+
+  it('safely handles large seeds, negative seeds, floats, and string seeds', () => {
+    const prng = createPRNG(1337);
+
+    // Large numbers like k * 100 + armIndex in galaxy spiral particles
+    const largeSeedVal1 = prng(14000);
+    const largeSeedVal2 = prng(14000);
+    expect(largeSeedVal1).toBe(largeSeedVal2);
+    expect(largeSeedVal1).toBeGreaterThanOrEqual(0);
+    expect(largeSeedVal1).toBeLessThan(1);
+
+    // Negative seed
+    const negSeed = prng(-9999);
+    expect(negSeed).toBeGreaterThanOrEqual(0);
+    expect(negSeed).toBeLessThan(1);
+
+    // Float seed
+    const floatSeed1 = prng(3.14159);
+    const floatSeed2 = prng(3.14159);
+    expect(floatSeed1).toBe(floatSeed2);
+
+    // Zero seed
+    const zeroSeed = prng(0);
+    expect(zeroSeed).toBeGreaterThanOrEqual(0);
+    expect(zeroSeed).toBeLessThan(1);
+
+    // String seeds (e.g. opts.random('star_1'))
+    const strSeed1 = prng('arm_0_particle_5');
+    const strSeed2 = prng('arm_0_particle_5');
+    const strSeedOther = prng('arm_1_particle_5');
+    expect(strSeed1).toBe(strSeed2);
+    expect(strSeed1).not.toBe(strSeedOther);
+    expect(strSeed1).toBeGreaterThanOrEqual(0);
+    expect(strSeed1).toBeLessThan(1);
+  });
 });

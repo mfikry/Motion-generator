@@ -146,13 +146,37 @@ export function setupWorkerCommunication(targetScope?: { postMessage: unknown })
 export function getOrCreateOffscreenCanvas(
   width: number,
   height: number
-): { canvas: OffscreenCanvas; ctx: OffscreenCanvasRenderingContext2D } {
-  if (!cachedCanvas || cachedCanvas.width !== width || cachedCanvas.height !== height) {
-    cachedCanvas = new OffscreenCanvas(width, height);
-    cachedCtx = cachedCanvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+): { canvas: { transferToImageBitmap?: () => ImageBitmap }; ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D } {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    if (!cachedCanvas || cachedCanvas.width !== width || cachedCanvas.height !== height) {
+      cachedCanvas = new OffscreenCanvas(width, height);
+      cachedCtx = cachedCanvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+    }
+    if (!cachedCtx || !cachedCanvas) {
+      throw new Error('Failed to obtain 2D rendering context for OffscreenCanvas');
+    }
+    return { canvas: cachedCanvas, ctx: cachedCtx };
   }
-  if (!cachedCtx) {
-    throw new Error('Failed to obtain 2D rendering context for OffscreenCanvas');
+
+  // Headless Node environment fallback
+  if (!cachedCanvas || !cachedCtx) {
+    const mockCtx = {
+      clearRect: () => {},
+      fillRect: () => {},
+      beginPath: () => {},
+      arc: () => {},
+      fill: () => {},
+      stroke: () => {},
+      resetTransform: () => {},
+      reset: () => {},
+      getImageData: () => ({ data: new Uint8Array(width * height * 4) }),
+    };
+    cachedCanvas = {
+      width,
+      height,
+      transferToImageBitmap: () => ({ close: () => {} }),
+    } as unknown as OffscreenCanvas;
+    cachedCtx = mockCtx as unknown as OffscreenCanvasRenderingContext2D;
   }
   return { canvas: cachedCanvas, ctx: cachedCtx };
 }
@@ -175,6 +199,23 @@ export function processWorkerExecution(
       ? canvasProvider(width, height)
       : getOrCreateOffscreenCanvas(width, height);
 
+    // Full 2D context state sanitization before frame execution
+    if (typeof (ctx as unknown as { reset?: () => void }).reset === 'function') {
+      (ctx as unknown as { reset: () => void }).reset();
+    } else {
+      if (typeof ctx.resetTransform === 'function') {
+        ctx.resetTransform();
+      }
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+      ctx.filter = 'none';
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#000000';
+      ctx.fillStyle = '#000000';
+    }
+
     // Clear canvas before drawing
     ctx.clearRect(0, 0, width, height);
 
@@ -182,6 +223,17 @@ export function processWorkerExecution(
     executeSandboxedCode(ctx, code, t, width, height, opts);
 
     const executionTimeMs = performance.now() - startTime;
+
+    // Return imageData directly when requested for pixel comparison / dry-run
+    if (payload.returnImageData || typeof canvas.transferToImageBitmap !== 'function') {
+      const imageData = ctx.getImageData(0, 0, width, height);
+      return {
+        type: 'SUCCESS',
+        id,
+        imageData,
+        executionTimeMs,
+      };
+    }
 
     // Prefer zero-copy transferToImageBitmap if available
     if (typeof canvas.transferToImageBitmap === 'function') {
@@ -202,14 +254,33 @@ export function processWorkerExecution(
       id,
       imageData,
       executionTimeMs,
-      transferables: [imageData.data.buffer],
     };
   } catch (err) {
     const executionTimeMs = performance.now() - startTime;
+    // Wipe offscreen canvas clean immediately to prevent partial-render leakage
+    try {
+      const { ctx } = canvasProvider
+        ? canvasProvider(width, height)
+        : getOrCreateOffscreenCanvas(width, height);
+      if (typeof (ctx as unknown as { reset?: () => void }).reset === 'function') {
+        (ctx as unknown as { reset: () => void }).reset();
+      } else if (typeof ctx.resetTransform === 'function') {
+        ctx.resetTransform();
+      }
+      ctx.clearRect(0, 0, width, height);
+    } catch {
+      // Ignore cleanup error
+    }
+
+    const errorName = err instanceof Error && err.name ? err.name : 'RuntimeError';
+    let errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.startsWith(`${errorName}: `)) {
+      errorMsg = errorMsg.slice(`${errorName}: `.length);
+    }
     return {
       type: 'ERROR',
       id,
-      error: err instanceof Error ? err.message : String(err),
+      error: `${errorName}: ${errorMsg}`,
       executionTimeMs,
     };
   }
@@ -223,17 +294,41 @@ if (typeof self !== 'undefined' && typeof (self as unknown as Worker).postMessag
   setupWorkerCommunication(self as unknown as { postMessage: unknown });
   hardenWorkerGlobalScope();
 
+  // Notify host that worker initialization and hardening has completed
+  const notifyReady = _internalPostMessage as ((message: unknown) => void) | null;
+  if (notifyReady) {
+    notifyReady({ type: 'READY' });
+  } else if (typeof (self as unknown as Worker).postMessage === 'function') {
+    (self as unknown as Worker).postMessage({ type: 'READY' });
+  }
+
   self.onmessage = (event: MessageEvent<WorkerExecutePayload>) => {
-    const response = processWorkerExecution(event.data);
-    const { transferables, ...result } = response;
-    if (_internalPostMessage) {
-      if (transferables && transferables.length > 0) {
-        _internalPostMessage(result, transferables);
-      } else {
-        _internalPostMessage(result);
+    try {
+      const response = processWorkerExecution(event.data);
+      const { transferables, ...result } = response;
+      if (_internalPostMessage) {
+        try {
+          if (transferables && transferables.length > 0) {
+            _internalPostMessage(result, transferables);
+          } else {
+            _internalPostMessage(result);
+          }
+        } catch {
+          _internalPostMessage(result);
+        }
+      } else if (typeof (self as unknown as Worker).postMessage === 'function') {
+        (self as unknown as Worker).postMessage(result, transferables as unknown as StructuredSerializeOptions);
       }
-    } else if (typeof (self as unknown as Worker).postMessage === 'function') {
-      (self as unknown as Worker).postMessage(result, transferables as unknown as StructuredSerializeOptions);
+    } catch (workerErr) {
+      const errMsg = workerErr instanceof Error ? workerErr.message : String(workerErr);
+      if (_internalPostMessage) {
+        _internalPostMessage({
+          type: 'ERROR',
+          id: event.data?.id,
+          error: `Worker execution handler failed: ${errMsg}`,
+          executionTimeMs: 0,
+        });
+      }
     }
   };
 }

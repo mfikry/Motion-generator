@@ -1,109 +1,92 @@
 import { describe, it, expect } from 'vitest';
 import { buildMotionArchitectSystemPrompt, buildRetryPrompt } from '../system-prompt';
-import { validateMotionBlueprint } from '@genc/motion-schema';
+import { analyzeCodeSafety } from '../../../renderer/sandbox/static-analyzer';
 
-describe('System Prompt & Visual Richness Floor', () => {
-  it('generates system prompt containing both Strict Prompt Fidelity and Visual Richness Floor', () => {
+describe('System Prompt (v2.0 Canvas2D Generative)', () => {
+  it('generates system prompt containing drawFrame function signature and parameters', () => {
     const prompt = buildMotionArchitectSystemPrompt();
 
-    // Verify presence of Strict Prompt Fidelity
-    expect(prompt).toContain('STRICT PROMPT FIDELITY');
-    expect(prompt).toContain('MANDATORY PRE-FINALIZATION SELF-CHECK');
-
-    // Verify presence of Visual Richness Floor rules
+    expect(prompt).toContain('function drawFrame(ctx, t, width, height, opts)');
+    expect(prompt).toContain('opts.random()');
+    expect(prompt).toContain('SEAMLESS LOOPING');
+    expect(prompt).toContain('DETERMINISTIC RANDOMNESS');
+    expect(prompt).toContain('STRICTLY PROHIBITED APIS');
     expect(prompt).toContain('VISUAL RICHNESS FLOOR');
-    expect(prompt).toContain('60%–70% Canvas Coverage');
-    expect(prompt).toContain('Multi-Stroke / Layered Glow');
-    expect(prompt).toContain('Scale / Size Hierarchy');
-    expect(prompt).toContain('Concentric / Multi-Tier Nesting');
-    expect(prompt).toContain('r = a + b * θ');
-    expect(prompt).toContain('ASPECT RATIO-AWARE DENSITY SCALING');
-  });
-
-  it('contains all 6 diversified few-shot examples', () => {
-    const prompt = buildMotionArchitectSystemPrompt();
-
-    expect(prompt).toContain('Example 1: Dominant Particle System');
-    expect(prompt).toContain('Example 2: Concentric Rotating Geometric Shapes');
-    expect(prompt).toContain('Example 3: Flowing Wave Curves & Backdrop');
-    expect(prompt).toContain('Example 4: Data Growth & Trend Chart');
-    expect(prompt).toContain('Example 5: Animated Geometric Grid / Lattice');
-    expect(prompt).toContain('Example 6: Mathematically Precise Archimedean Spiral');
+    expect(prompt).toContain('MATHEMATICAL STRUCTURE & SHAPE LEGIBILITY');
+    expect(prompt).toContain('Subtle Perturbation Only');
+    expect(prompt).toContain('Continuous Color Gradients');
+    expect(prompt).toContain('Consistent Opacity & Continuous Flow');
+    expect(prompt).toContain('1-Second Static Recognition Test');
+    expect(prompt).toContain('STRICT PROMPT FIDELITY');
   });
 
   it('adjusts locked canvas constraint and dimensions based on aspect ratio setting', () => {
     const prompt169 = buildMotionArchitectSystemPrompt({ aspectRatio: '16:9' });
-    expect(prompt169).toContain('"width": 1920, "height": 1080');
+    expect(prompt169).toContain('width: 1920, height: 1080');
 
     const prompt916 = buildMotionArchitectSystemPrompt({ aspectRatio: '9:16' });
-    expect(prompt916).toContain('"width": 1080, "height": 1920');
+    expect(prompt916).toContain('width: 1080, height: 1920');
 
     const prompt11 = buildMotionArchitectSystemPrompt({ aspectRatio: '1:1' });
-    expect(prompt11).toContain('"width": 1080, "height": 1080');
+    expect(prompt11).toContain('width: 1080, height: 1080');
   });
 
-  it('buildRetryPrompt includes Visual Richness Floor and Strict Prompt Fidelity reminders', () => {
-    const retryPrompt = buildRetryPrompt(
-      'A cyber grid lattice with pulsing neon dots',
-      ['Keyframe timestamps t must be in normalized progress range 0.0–1.0'],
-      { aspectRatio: '16:9' },
-    );
+  it('handles green screen background setting correctly', () => {
+    const promptGreen = buildMotionArchitectSystemPrompt({ greenScreen: true });
+    expect(promptGreen).toContain('#00B140');
+    expect(promptGreen).toContain('Green screen is ENABLED');
 
-    expect(retryPrompt).toContain('STRICT PROMPT FIDELITY');
-    expect(retryPrompt).toContain('VISUAL RICHNESS FLOOR');
-    expect(retryPrompt).toContain('cover >= 60-70% of the canvas');
-    expect(retryPrompt).toContain('width: 1920 and height: 1080');
-    expect(retryPrompt).toContain('Keyframe timestamps t must be in normalized progress range 0.0–1.0');
-    expect(retryPrompt).toContain('shape: "polygon" with "sides": 6');
+    const promptDefault = buildMotionArchitectSystemPrompt({ greenScreen: false });
+    expect(promptDefault).toContain('clearRect');
   });
 
-  it('contains explicit Shape Enum Enforcement and concrete hexagon polygon example', () => {
+  it('contains all 3 diversified Canvas2D few-shot examples', () => {
     const prompt = buildMotionArchitectSystemPrompt();
 
-    expect(prompt).toContain('SHAPE LAYER CLOSED ENUM');
-    expect(prompt).toContain('"rect" | "circle" | "polygon" | "star"');
-    expect(prompt).toContain('Concrete Example for Hexagon');
-    expect(prompt).toContain('"shape": "polygon"');
-    expect(prompt).toContain('"sides": 6');
+    expect(prompt).toContain('Example 1: Theme "neon particles" / Flow Field');
+    expect(prompt).toContain('Example 2: Theme "rotating hexagon lattice" / Pulsing Geometric');
+    expect(prompt).toContain('Example 3: Theme "grafik tren naik" / Financial Data Growth Wave');
   });
 
-  it('contains explicit Anti-Copy-Paste mandate in few-shot header and Example 4', () => {
-    const prompt = buildMotionArchitectSystemPrompt();
-
-    expect(prompt).toContain('ANTI-COPY-PASTE MANDATE');
-    expect(prompt).toContain('STRICT ANTI-COPY-PASTE RULE');
-    expect(prompt).toContain('STRUCTURAL PATTERN REFERENCE ONLY');
-  });
-
-  it('validates that all few-shot examples in system prompt can be parsed as valid Motion Blueprints', () => {
+  it('validates that all few-shot examples in system prompt pass static analysis', () => {
     const prompt = buildMotionArchitectSystemPrompt({ aspectRatio: '1:1' });
 
-    // Extract all JSON objects following "Example N: ..."
-    const exampleRegex = /Example \d+:[^\n]+\n(\{[\s\S]*?\n\})(?=\n\nExample|\n*$)/g;
-    const jsonMatches: string[] = [];
+    // Extract all JS code blocks following "Example N: ..."
+    const exampleRegex = /Example \d+:[^\n]+\n```javascript\n([\s\S]*?)\n```/g;
+    const codeBlocks: string[] = [];
     let match: RegExpExecArray | null;
 
     while ((match = exampleRegex.exec(prompt)) !== null) {
       if (match[1]) {
-        jsonMatches.push(match[1]);
+        codeBlocks.push(match[1]);
       }
     }
 
-    expect(jsonMatches.length).toBe(6);
+    expect(codeBlocks.length).toBe(3);
 
-    for (let i = 0; i < jsonMatches.length; i++) {
-      const rawJson = jsonMatches[i] ?? '';
-      let parsed: unknown;
-      expect(() => {
-        parsed = JSON.parse(rawJson);
-      }).not.toThrow();
-
-      const validation = validateMotionBlueprint(parsed, { expectedAspectRatio: '1:1' });
-      if (!validation.valid) {
-        throw new Error(`Example ${i + 1} validation failed: ${validation.errors.join(', ')}`);
+    for (let i = 0; i < codeBlocks.length; i++) {
+      const code = codeBlocks[i] ?? '';
+      const analysis = analyzeCodeSafety(code);
+      if (!analysis.valid) {
+        throw new Error(`Few-shot Example ${i + 1} failed static analysis: ${analysis.errors.join(', ')}`);
       }
-      expect(validation.valid).toBe(true);
-      expect(validation.blueprint).toBeDefined();
+      expect(analysis.valid).toBe(true);
+      expect(analysis.errors.length).toBe(0);
     }
+  });
+
+  it('buildRetryPrompt includes original prompt, errors, and Canvas2D constraints', () => {
+    const retryPrompt = buildRetryPrompt(
+      'A cyber grid lattice with pulsing neon dots',
+      ['Loop seam error: RGBA Mean Absolute Error is 12.4 > 4.0 threshold between t=0.0 and t=1.0.'],
+      { aspectRatio: '16:9' },
+    );
+
+    expect(retryPrompt).toContain('A cyber grid lattice with pulsing neon dots');
+    expect(retryPrompt).toContain('Loop seam error: RGBA Mean Absolute Error is 12.4');
+    expect(retryPrompt).toContain('SEAMLESS LOOPING (MANDATORY)');
+    expect(retryPrompt).toContain('NO FORBIDDEN APIS');
+    expect(retryPrompt).toContain('SHAPE LEGIBILITY');
+    expect(retryPrompt).toContain('width: 1920 and height: 1080 (16:9)');
   });
 });

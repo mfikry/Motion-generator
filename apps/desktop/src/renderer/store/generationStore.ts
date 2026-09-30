@@ -19,6 +19,7 @@ interface GenerationStoreState {
   error: string | null;
   retriesUsed: number;
   currentBlueprint: MotionBlueprint | null;
+  currentCode: string | null;
   generations: GenerationRecord[];
 
   setMode: (mode: 'text' | 'image') => void;
@@ -29,6 +30,7 @@ interface GenerationStoreState {
   setVariations: (variations: number) => void;
   setBatchSize: (batchSize: number) => void;
   setCurrentBlueprint: (blueprint: MotionBlueprint | null) => void;
+  setCurrentCode: (code: string | null) => void;
   clearError: () => void;
   generate: (settings?: GenerateTextSettings) => Promise<boolean>;
   loadGenerations: () => Promise<void>;
@@ -47,6 +49,7 @@ export const useGenerationStore = create<GenerationStoreState>((set, get) => ({
   error: null,
   retriesUsed: 0,
   currentBlueprint: null,
+  currentCode: null,
   generations: [],
 
   setMode: (mode) => set({ mode }),
@@ -57,6 +60,7 @@ export const useGenerationStore = create<GenerationStoreState>((set, get) => ({
   setVariations: (variations) => set({ variations }),
   setBatchSize: (batchSize) => set({ batchSize }),
   setCurrentBlueprint: (currentBlueprint) => set({ currentBlueprint }),
+  setCurrentCode: (currentCode) => set({ currentCode }),
   clearError: () => set({ error: null }),
 
   generate: async (settings) => {
@@ -94,14 +98,21 @@ export const useGenerationStore = create<GenerationStoreState>((set, get) => ({
         settings,
       });
 
-      if (result.success && result.blueprints.length > 0) {
-        const lastBlueprint = result.blueprints[result.blueprints.length - 1] ?? null;
+      const hasCodes = result.codes && result.codes.length > 0;
+      const hasBlueprints = result.blueprints && result.blueprints.length > 0;
+
+      if (result.success && (hasCodes || hasBlueprints)) {
+        const codes = result.codes;
+        const lastCode = codes && codes.length > 0 ? codes[codes.length - 1] ?? null : null;
+        const lastBlueprint = hasBlueprints ? result.blueprints[result.blueprints.length - 1] ?? null : null;
+
         set({
           isGenerating: false,
+          currentCode: lastCode,
           currentBlueprint: lastBlueprint,
           retriesUsed: result.retriesUsed ?? 0,
-          statusMessage: `Selesai! ${result.completedTasks}/${result.totalTasks} blueprint berhasil dihasilkan.${
-            result.retriesUsed ? ` (${result.retriesUsed}x koreksi skema otomatis)` : ''
+          statusMessage: `Selesai! ${result.completedTasks}/${result.totalTasks} motion graphics berhasil dihasilkan.${
+            result.retriesUsed ? ` (${result.retriesUsed}x koreksi otomatis)` : ''
           }`,
         });
         get().loadGenerations();
@@ -109,7 +120,7 @@ export const useGenerationStore = create<GenerationStoreState>((set, get) => ({
       } else {
         set({
           isGenerating: false,
-          error: result.error ?? 'Gagal menghasilkan Motion Blueprint dari AI.',
+          error: result.error ?? 'Gagal menghasilkan Canvas2D code dari AI.',
           statusMessage: null,
         });
         return false;

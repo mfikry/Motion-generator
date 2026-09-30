@@ -1,19 +1,22 @@
 import { create } from 'zustand';
+import type { Canvas2DPreviewRenderer } from '../canvas/canvas2d-renderer';
 import type { MotionPreviewRenderer } from '../canvas/pixi-renderer';
+
+export type PlaybackRenderer = Canvas2DPreviewRenderer | MotionPreviewRenderer;
 
 export interface CanvasPlaybackState {
   currentTime: number;
   duration: number;
   isPlaying: boolean;
   fps: number;
-  rendererInstance: MotionPreviewRenderer | null;
+  rendererInstance: PlaybackRenderer | null;
 
   // Actions
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setFps: (fps: number) => void;
-  setRendererInstance: (renderer: MotionPreviewRenderer | null) => void;
+  setRendererInstance: (renderer: PlaybackRenderer | null) => void;
 
   play: () => void;
   pause: () => void;

@@ -22,12 +22,56 @@ export interface IWorkerAdapter {
 
 export type WorkerFactory = () => IWorkerAdapter;
 
+import { processWorkerExecution } from './canvas-worker';
+
+/**
+ * Fallback worker adapter for non-browser / unit-test environments where Web Worker is unavailable.
+ */
+export function createInProcessWorkerAdapter(): IWorkerAdapter {
+  let onmessageHandler: ((event: { data: WorkerResponse }) => void) | null = null;
+  let onerrorHandler: ((event: unknown) => void) | null = null;
+
+  return {
+    postMessage(payload: WorkerExecutePayload) {
+      setTimeout(() => {
+        try {
+          const res = processWorkerExecution(payload);
+          onmessageHandler?.({ data: res });
+        } catch (err) {
+          onmessageHandler?.({
+            data: {
+              type: 'ERROR',
+              id: payload.id,
+              error: err instanceof Error ? err.message : String(err),
+              executionTimeMs: 0,
+            },
+          });
+        }
+      }, 0);
+    },
+    terminate() {},
+    get onmessage() {
+      return onmessageHandler;
+    },
+    set onmessage(handler) {
+      onmessageHandler = handler;
+    },
+    get onerror() {
+      return onerrorHandler;
+    },
+    set onerror(handler) {
+      onerrorHandler = handler;
+    },
+  };
+}
+
 /**
  * Default browser worker factory using Vite module worker syntax.
+ * Automatically falls back to in-process adapter in headless environments.
  */
 export function defaultBrowserWorkerFactory(): IWorkerAdapter {
   if (typeof Worker === 'undefined') {
-    throw new Error('Web Worker is not supported in this environment.');
+    return createInProcessWorkerAdapter();
   }
   return new Worker(new URL('./canvas-worker.ts', import.meta.url), {
     type: 'module',
@@ -46,6 +90,35 @@ export class SandboxedCodeExecutor {
     this.defaultTimeoutMs = options?.defaultTimeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
   }
 
+  private workerReadyPromise: Promise<void> | null = null;
+  private workerReadyResolver: (() => void) | null = null;
+
+  /**
+   * Pre-warms the Web Worker so that JIT compilation and module fetching
+   * (e.g. in Vite dev mode) do not compete with the execution watchdog timeout.
+   */
+  public warmup(): void {
+    if (!this.isDisposed && !this.worker) {
+      try {
+        this.getWorker();
+      } catch {
+        // Ignore in environments where workers are not supported
+      }
+    }
+  }
+
+  /**
+   * Ensures the worker has completed startup and hardening before executing frames.
+   */
+  public async ensureWorkerReady(): Promise<void> {
+    if (!this.worker) {
+      this.getWorker();
+    }
+    if (this.workerReadyPromise) {
+      await this.workerReadyPromise;
+    }
+  }
+
   /**
    * Initializes or gets the active worker instance.
    */
@@ -55,6 +128,20 @@ export class SandboxedCodeExecutor {
     }
     if (!this.worker) {
       this.worker = this.workerFactory();
+      this.workerReadyPromise = new Promise<void>((resolve) => {
+        this.workerReadyResolver = resolve;
+        // Fallback resolve after 1500ms in case environment doesn't emit READY
+        setTimeout(resolve, 1500);
+      });
+      const initialWorker = this.worker;
+      initialWorker.onmessage = (event: { data: WorkerResponse }) => {
+        if (event.data?.type === 'READY') {
+          if (this.workerReadyResolver) {
+            this.workerReadyResolver();
+            this.workerReadyResolver = null;
+          }
+        }
+      };
     }
     return this.worker;
   }
@@ -70,6 +157,8 @@ export class SandboxedCodeExecutor {
         // Ignore termination errors
       }
       this.worker = null;
+      this.workerReadyPromise = null;
+      this.workerReadyResolver = null;
     }
   }
 
@@ -100,7 +189,15 @@ export class SandboxedCodeExecutor {
       width: params.width,
       height: params.height,
       opts: params.opts,
+      returnImageData: params.returnImageData,
     };
+
+    // Step 2b: Ensure worker has completed startup/hardening before dispatching frame
+    try {
+      await this.ensureWorkerReady();
+    } catch {
+      // Ignore warmup errors
+    }
 
     // Step 3: Execute in worker with strict watchdog timeout guard
     return new Promise<ExecutionResult>((resolve) => {
@@ -152,7 +249,7 @@ export class SandboxedCodeExecutor {
       workerInstance.onmessage = (event: { data: WorkerResponse }) => {
         if (settled) return;
         const res = event.data;
-        if (!res || res.id !== requestId) return;
+        if (!res || res.type === 'READY' || res.id !== requestId) return;
 
         settled = true;
         cleanup();
@@ -165,7 +262,7 @@ export class SandboxedCodeExecutor {
             timedOut: false,
             executionTimeMs: performance.now() - startTime,
           });
-        } else {
+        } else if (res.type === 'ERROR') {
           resolve({
             success: false,
             error: res.error,

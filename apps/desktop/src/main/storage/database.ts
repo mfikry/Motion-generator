@@ -46,6 +46,7 @@ export function initDatabase(customPath?: string): Database.Database {
       model_used TEXT,
       thinking_level TEXT,
       blueprint_json TEXT,
+      code_text TEXT,
       token_usage INTEGER,
       created_at DATETIME
     );
@@ -65,6 +66,13 @@ export function initDatabase(customPath?: string): Database.Database {
       finished_at DATETIME
     );
   `);
+
+  // Migrate existing databases if code_text column is missing
+  try {
+    db.exec(`ALTER TABLE generations ADD COLUMN code_text TEXT;`);
+  } catch {
+    // Column already exists
+  }
 
   return db;
 }

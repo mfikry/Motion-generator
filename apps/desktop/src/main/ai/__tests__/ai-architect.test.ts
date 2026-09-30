@@ -46,35 +46,23 @@ import {
   generateBlueprintsFromText,
   resolveModelName,
   mapThinkingBudget,
+  cleanCodeText,
   cleanJsonText,
 } from '../ai-architect';
 import { saveGeneration, listGenerations, getGenerationById } from '../generation-storage';
-import type { MotionBlueprint, GenerationRecord } from '@genc/shared-types';
+import type { GenerationRecord } from '@genc/shared-types';
 
-const validBlueprintFixture: MotionBlueprint = {
-  blueprintId: 'bp-test-uuid',
-  category: 'cyberpunk',
-  canvas: { width: 1920, height: 1080, background: '#0a0a1a' },
-  fps: 30,
-  palette: ['#00ffff', '#ff00ff', '#ffff00', '#0a0a1a'],
-  layers: [
-    {
-      id: 'layer-1',
-      type: 'shape',
-      shape: 'circle',
-      properties: { x: 960, y: 540, radius: 50, color: '#00ffff' },
-      keyframes: [
-        { t: 0, props: { scale: 0.5 }, easing: 'easeInOutCubic' },
-        { t: 0.5, props: { scale: 1.0 }, easing: 'easeInOutCubic' },
-        { t: 1.0, props: { scale: 0.5 }, easing: 'easeInOutCubic' },
-      ],
-    },
-  ],
-  loop: { seamless: true },
-  rulesLevel: 'simple',
-  introOutro: false,
-  noText: true,
-};
+const validCanvasCodeFixture = `
+ctx.fillStyle = '#0a0a14';
+ctx.fillRect(0, 0, width, height);
+const cx = width / 2;
+const cy = height / 2;
+const r = 50 + 20 * Math.sin(t * Math.PI * 2);
+ctx.fillStyle = '#00f5d4';
+ctx.beginPath();
+ctx.arc(cx, cy, r, 0, Math.PI * 2);
+ctx.fill();
+`.trim();
 
 function seedKey(id: string, label: string, plainKey: string, status = 'valid') {
   const db = getDatabase();
@@ -87,7 +75,7 @@ function seedKey(id: string, label: string, plainKey: string, status = 'valid') 
   ).run(id, label, fakeEncrypted, status, new Date().toISOString());
 }
 
-describe('AI Architect (Text Mode)', () => {
+describe('AI Architect (v2.0 Canvas2D Generative)', () => {
   beforeEach(() => {
     clearMockDatabases();
     closeDatabase();
@@ -116,24 +104,25 @@ describe('AI Architect (Text Mode)', () => {
       expect(mapThinkingBudget(undefined)).toEqual({ thinkingBudget: 4096 });
     });
 
-    it('should strip markdown code blocks from JSON output', () => {
-      const rawWithCodeBlock = '```json\n{"key": "value"}\n```';
-      expect(cleanJsonText(rawWithCodeBlock)).toBe('{"key": "value"}');
+    it('should strip markdown code blocks from JS output', () => {
+      const rawWithJsBlock = '```javascript\nctx.fillRect(0, 0, width, height);\n```';
+      expect(cleanCodeText(rawWithJsBlock)).toBe('ctx.fillRect(0, 0, width, height);');
 
-      const rawWithGenericBlock = '```\n{"key": "value"}\n```';
-      expect(cleanJsonText(rawWithGenericBlock)).toBe('{"key": "value"}');
+      const rawWithGenericBlock = '```\nctx.fillRect(0, 0, width, height);\n```';
+      expect(cleanCodeText(rawWithGenericBlock)).toBe('ctx.fillRect(0, 0, width, height);');
 
-      const plain = '{"key": "value"}';
-      expect(cleanJsonText(plain)).toBe('{"key": "value"}');
+      const plain = 'ctx.fillRect(0, 0, width, height);';
+      expect(cleanCodeText(plain)).toBe('ctx.fillRect(0, 0, width, height);');
+      expect(cleanJsonText(plain)).toBe('ctx.fillRect(0, 0, width, height);');
     });
   });
 
-  describe('Single & Batch Generation', () => {
-    it('should generate a valid blueprint and persist to SQLite', async () => {
+  describe('Single & Batch Code Generation', () => {
+    it('should generate valid Canvas2D code and persist to SQLite', async () => {
       seedKey('key-1', 'Key 1', 'AIzaKey1');
 
       mockGenerateContent.mockResolvedValueOnce({
-        text: JSON.stringify(validBlueprintFixture),
+        text: `\`\`\`javascript\n${validCanvasCodeFixture}\n\`\`\``,
         usageMetadata: { totalTokenCount: 512 },
       });
 
@@ -147,8 +136,8 @@ describe('AI Architect (Text Mode)', () => {
 
       expect(result.error).toBeUndefined();
       expect(result.success).toBe(true);
-      expect(result.blueprints.length).toBe(1);
-      expect(result.blueprints[0]?.category).toBe('cyberpunk');
+      expect(result.codes?.length).toBe(1);
+      expect(result.codes?.[0]).toContain('ctx.arc(cx, cy, r, 0, Math.PI * 2)');
       expect(result.totalTasks).toBe(1);
       expect(result.completedTasks).toBe(1);
       expect(result.modelUsed).toBe('gemini-2.5-flash');
@@ -159,18 +148,15 @@ describe('AI Architect (Text Mode)', () => {
       expect(saved[0]?.promptText).toBe('Glowing cyberpunk circle pulse');
       expect(saved[0]?.modelUsed).toBe('gemini-2.5-flash');
       expect(saved[0]?.tokenUsage).toBe(512);
-
-      const parsedSavedBp = JSON.parse(saved[0]?.blueprintJson ?? '{}');
-      expect(parsedSavedBp.category).toBe('cyberpunk');
+      expect(saved[0]?.codeText).toContain('ctx.arc(cx, cy, r, 0, Math.PI * 2)');
     });
 
     it('should generate multiple tasks for variations * batchSize', async () => {
       seedKey('key-1', 'Key 1', 'AIzaKey1');
 
-      // 2 variations * 2 batch size = 4 total tasks
       mockGenerateContent.mockImplementation(() =>
         Promise.resolve({
-          text: JSON.stringify(validBlueprintFixture),
+          text: validCanvasCodeFixture,
           usageMetadata: { totalTokenCount: 300 },
         }),
       );
@@ -184,7 +170,7 @@ describe('AI Architect (Text Mode)', () => {
       expect(result.success).toBe(true);
       expect(result.totalTasks).toBe(4);
       expect(result.completedTasks).toBe(4);
-      expect(result.blueprints.length).toBe(4);
+      expect(result.codes?.length).toBe(4);
       expect(mockGenerateContent).toHaveBeenCalledTimes(4);
 
       const saved = listGenerations(10);
@@ -192,33 +178,25 @@ describe('AI Architect (Text Mode)', () => {
     });
   });
 
-  describe('Auto-Retry on Schema Validation Error', () => {
-    it('should retry when Gemini returns schema-invalid JSON and succeed on next attempt', async () => {
+  describe('Auto-Retry on Static Analysis and Loop Seam Errors', () => {
+    it('should retry when Gemini returns code with forbidden APIs and succeed on next attempt', async () => {
       seedKey('key-1', 'Key 1', 'AIzaKey1');
 
-      // Attempt 1: Invalid layer type (fails closed enum)
-      const invalidBlueprint = {
-        ...validBlueprintFixture,
-        layers: [
-          {
-            id: 'l-1',
-            type: 'video_clip', // Invalid enum
-            shape: 'rect',
-            properties: {},
-            keyframes: [],
-          },
-        ],
-      };
+      // Attempt 1: Contains forbidden identifier 'window'
+      const forbiddenCode = `
+        const w = window.innerWidth;
+        ctx.fillRect(0, 0, w, 100);
+      `;
 
-      // Attempt 2: Valid
+      // Attempt 2: Clean valid code
       mockGenerateContent
         .mockResolvedValueOnce({
-          text: JSON.stringify(invalidBlueprint),
-          usageMetadata: { totalTokenCount: 400 },
+          text: forbiddenCode,
+          usageMetadata: { totalTokenCount: 200 },
         })
         .mockResolvedValueOnce({
-          text: JSON.stringify(validBlueprintFixture),
-          usageMetadata: { totalTokenCount: 450 },
+          text: validCanvasCodeFixture,
+          usageMetadata: { totalTokenCount: 350 },
         });
 
       const result = await generateBlueprintsFromText({
@@ -228,141 +206,68 @@ describe('AI Architect (Text Mode)', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.blueprints.length).toBe(1);
+      expect(result.codes?.length).toBe(1);
       expect(result.retriesUsed).toBe(1);
       expect(mockGenerateContent).toHaveBeenCalledTimes(2);
 
-      // Verify retry prompt sent to Gemini contains error hint
+      // Verify retry prompt sent to Gemini contains forbidden identifier hint
       const secondCallArgs = mockGenerateContent.mock.calls[1]?.[0];
-      expect(secondCallArgs?.contents).toContain('had schema validation errors');
-      expect(secondCallArgs?.contents).toContain('layers[0].type');
+      expect(secondCallArgs?.contents).toContain('Forbidden identifier detected: \'window\'');
     });
 
-    it('should retry when Gemini returns a blueprint with non-seamless loop (central-burst case) and succeed on retry', async () => {
+    it('should retry when sandboxed dry-run validator reports non-seamless loop and succeed on retry', async () => {
       seedKey('key-1', 'Key 1', 'AIzaKey1');
-
-      // Attempt 1: central-burst opacity mismatch (t=0 is 0, t=1.0 is 1)
-      const centralBurstMismatch: MotionBlueprint = {
-        ...validBlueprintFixture,
-        layers: [
-          {
-            id: 'central-burst',
-            type: 'shape',
-            shape: 'circle',
-            properties: { x: 960, y: 540, radius: 50, opacity: 0 },
-            keyframes: [
-              { t: 0, props: { opacity: 0 } },
-              { t: 0.5, props: { opacity: 1 } },
-              { t: 1.0, props: { opacity: 1 } },
-            ],
-          },
-        ],
-        loop: { seamless: true },
-      };
-
-      const burstLayer = centralBurstMismatch.layers[0];
-      if (!burstLayer) throw new Error('burstLayer is undefined');
-
-      // Attempt 2: corrected (t=1.0 returns to 0)
-      const centralBurstCorrected: MotionBlueprint = {
-        ...centralBurstMismatch,
-        layers: [
-          {
-            ...burstLayer,
-            keyframes: [
-              { t: 0, props: { opacity: 0 } },
-              { t: 0.5, props: { opacity: 1 } },
-              { t: 1.0, props: { opacity: 0 } },
-            ],
-          },
-        ],
-      };
 
       mockGenerateContent
         .mockResolvedValueOnce({
-          text: JSON.stringify(centralBurstMismatch),
-          usageMetadata: { totalTokenCount: 400 },
-        })
-        .mockResolvedValueOnce({
-          text: JSON.stringify(centralBurstCorrected),
-          usageMetadata: { totalTokenCount: 450 },
-        });
-
-      const result = await generateBlueprintsFromText({
-        prompt: 'Central burst pulsing',
-        variations: 1,
-        batchSize: 1,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.blueprints.length).toBe(1);
-      expect(result.retriesUsed).toBe(1);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
-
-      // Verify retry prompt sent to Gemini contains the exact central-burst mismatch error
-      const secondCallArgs = mockGenerateContent.mock.calls[1]?.[0];
-      expect(secondCallArgs?.contents).toContain(
-        "Layer 'central-burst' tidak seamless: opacity di t=0 (0) tidak sama dengan t=1.0 (1)",
-      );
-    });
-
-    it('should retry when Gemini returns canvas dimensions not matching requested aspect ratio and succeed on retry', async () => {
-      seedKey('key-1', 'Key 1', 'AIzaKey1');
-
-      // Attempt 1: Gemini returns square 1080x1080 when 16:9 was requested
-      const mismatchedRatioBlueprint: MotionBlueprint = {
-        ...validBlueprintFixture,
-        canvas: { width: 1080, height: 1080, background: '#0a0a1a' },
-      };
-
-      // Attempt 2: Correct 1920x1080
-      const correctedBlueprint: MotionBlueprint = {
-        ...validBlueprintFixture,
-        canvas: { width: 1920, height: 1080, background: '#0a0a1a' },
-      };
-
-      mockGenerateContent
-        .mockResolvedValueOnce({
-          text: JSON.stringify(mismatchedRatioBlueprint),
+          text: validCanvasCodeFixture,
           usageMetadata: { totalTokenCount: 300 },
         })
         .mockResolvedValueOnce({
-          text: JSON.stringify(correctedBlueprint),
-          usageMetadata: { totalTokenCount: 320 },
+          text: validCanvasCodeFixture,
+          usageMetadata: { totalTokenCount: 350 },
         });
 
-      const result = await generateBlueprintsFromText({
-        prompt: 'Landscape banner motion',
-        variations: 1,
-        batchSize: 1,
-        settings: {
-          aspectRatio: '16:9',
-        },
+      // Mock validator that fails on 1st call and succeeds on 2nd call
+      let validatorCallCount = 0;
+      const mockValidator = vi.fn().mockImplementation(async () => {
+        validatorCallCount++;
+        if (validatorCallCount === 1) {
+          return {
+            valid: false,
+            errors: ['Loop seam error: RGBA Mean Absolute Error is 18.5 > 4.0 threshold between t=0.0 and t=1.0.'],
+          };
+        }
+        return { valid: true };
       });
 
+      const result = await generateBlueprintsFromText(
+        {
+          prompt: 'Central burst pulsing',
+          variations: 1,
+          batchSize: 1,
+        },
+        mockValidator,
+      );
+
       expect(result.success).toBe(true);
-      expect(result.blueprints.length).toBe(1);
-      expect(result.blueprints[0]?.canvas.width).toBe(1920);
-      expect(result.blueprints[0]?.canvas.height).toBe(1080);
+      expect(result.codes?.length).toBe(1);
       expect(result.retriesUsed).toBe(1);
       expect(mockGenerateContent).toHaveBeenCalledTimes(2);
 
       const secondCallArgs = mockGenerateContent.mock.calls[1]?.[0];
-      expect(secondCallArgs?.contents).toContain('Canvas dimensions [1080x1080] do not match required dimensions [1920x1080] for aspect ratio 16:9');
+      expect(secondCallArgs?.contents).toContain('Loop seam error: RGBA Mean Absolute Error is 18.5');
     });
 
-    it('should fail with clear error when MAX_SCHEMA_RETRIES is exhausted', async () => {
+    it('should fail with clear error when MAX_VALIDATION_RETRIES is exhausted', async () => {
       seedKey('key-1', 'Key 1', 'AIzaKey1');
 
-      const invalidBlueprint = {
-        ...validBlueprintFixture,
-        canvas: { width: 100, height: 100 }, // Invalid canvas bounds — missing background
-      };
+      // Fails static analysis every time
+      const forbiddenCode = 'fetch("https://malicious.com");';
 
-      // Fails 3 times (initial + 2 retries)
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(invalidBlueprint),
-        usageMetadata: { totalTokenCount: 300 },
+        text: forbiddenCode,
+        usageMetadata: { totalTokenCount: 100 },
       });
 
       const result = await generateBlueprintsFromText({
@@ -372,8 +277,8 @@ describe('AI Architect (Text Mode)', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.blueprints.length).toBe(0);
-      expect(result.error).toContain('Motion Blueprint tidak valid setelah 2x retry koreksi');
+      expect(result.codes?.length).toBe(0);
+      expect(result.error).toContain('Canvas2D code tidak valid setelah 2x retry koreksi');
     });
   });
 
@@ -382,12 +287,10 @@ describe('AI Architect (Text Mode)', () => {
       seedKey('key-1', 'Key 1', 'AIzaKey1', 'valid');
       seedKey('key-2', 'Key 2', 'AIzaKey2', 'valid');
 
-      // 1st call throws 429 Quota Exceeded
-      // 2nd call succeeds
       mockGenerateContent
         .mockRejectedValueOnce(new Error('429 RESOURCE_EXHAUSTED: Quota exceeded for quota metric'))
         .mockResolvedValueOnce({
-          text: JSON.stringify(validBlueprintFixture),
+          text: validCanvasCodeFixture,
           usageMetadata: { totalTokenCount: 400 },
         });
 
@@ -398,7 +301,7 @@ describe('AI Architect (Text Mode)', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.blueprints.length).toBe(1);
+      expect(result.codes?.length).toBe(1);
 
       // Key 1 should now be marked rate_limited in DB
       const db = getDatabase();
@@ -434,7 +337,7 @@ describe('AI Architect (Text Mode)', () => {
   });
 
   describe('Generation Storage Module', () => {
-    it('should save, list, and retrieve generation by ID', () => {
+    it('should save, list, and retrieve generation by ID with codeText', () => {
       const rec: GenerationRecord = {
         id: 'gen-uuid-1',
         projectId: null,
@@ -442,7 +345,7 @@ describe('AI Architect (Text Mode)', () => {
         referenceImages: null,
         modelUsed: 'gemini-2.5-flash',
         thinkingLevel: 'medium',
-        blueprintJson: JSON.stringify(validBlueprintFixture),
+        codeText: validCanvasCodeFixture,
         tokenUsage: 650,
         createdAt: new Date().toISOString(),
       };
@@ -453,11 +356,13 @@ describe('AI Architect (Text Mode)', () => {
       expect(list.length).toBe(1);
       expect(list[0]?.id).toBe('gen-uuid-1');
       expect(list[0]?.promptText).toBe('Floating neon cube');
+      expect(list[0]?.codeText).toBe(validCanvasCodeFixture);
 
       const fetched = getGenerationById('gen-uuid-1');
       expect(fetched).not.toBeNull();
       expect(fetched?.id).toBe('gen-uuid-1');
       expect(fetched?.thinkingLevel).toBe('medium');
+      expect(fetched?.codeText).toBe(validCanvasCodeFixture);
 
       const nonExistent = getGenerationById('non-existent');
       expect(nonExistent).toBeNull();
