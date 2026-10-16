@@ -52,5 +52,11 @@ export default defineConfig({
   build: {
     outDir: path.resolve(desktopRoot, 'dist/renderer'),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        index: path.resolve(desktopRoot, 'src/renderer/index.html'),
+        offscreen: path.resolve(desktopRoot, 'src/renderer/render-offscreen.html'),
+      },
+    },
   },
 });

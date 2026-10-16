@@ -19,6 +19,14 @@ export const IPC_CHANNELS = {
   // AI Architect Generation
   AI_GENERATE_TEXT: 'ai:generate-text',
   AI_GET_GENERATIONS: 'ai:get-generations',
+  // Render Pipeline (E8)
+  RENDER_START: 'render:start',
+  RENDER_CANCEL: 'render:cancel',
+  RENDER_PROGRESS: 'render:progress',
+  RENDER_COMPLETE: 'render:complete',
+  RENDER_ERROR: 'render:error',
+  RENDER_SELECT_OUTPUT: 'render:select-output',
+  RENDER_GET_GPU_INFO: 'render:get-gpu-info',
 } as const;
 
 export type IpcChannelName = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -57,7 +65,102 @@ export interface ApiKeyValidateResult {
 }
 
 /** Render job status */
-export type RenderJobStatus = 'queued' | 'rendering' | 'encoding' | 'done' | 'failed';
+export type RenderJobStatus = 'queued' | 'rendering' | 'encoding' | 'done' | 'failed' | 'cancelled';
+
+/** Rate control mode for encoding */
+export type RateControl = 'cbr' | 'vbr';
+
+/** GPU Hardware device info */
+export interface GpuDeviceInfo {
+  hasGpu: boolean;
+  gpuName: string;
+  vendor: 'nvidia' | 'amd' | 'intel' | 'unknown';
+  supportedEncoders: string[];
+  preferredH264Encoder: string | null;
+  preferredHevcEncoder: string | null;
+}
+
+/** Resolution dimensions for render */
+export const RESOLUTION_PRESETS: Record<ResolutionPreset, { label: string; scale: number }> = {
+  '4k': { label: '4K ULTRA', scale: 1.0 },
+  '1080p': { label: '1080p', scale: 1.0 },
+  '720p': { label: '720p', scale: 1.0 },
+  'custom': { label: 'Custom', scale: 1.0 },
+};
+
+/** Parameters to start a render job */
+export interface RenderStartParams {
+  /** Generation ID to render (code_text fetched from DB) */
+  generationId: string;
+  /** Canvas2D code to render (if provided directly, overrides DB lookup) */
+  code?: string;
+  /** Output video file path */
+  outputPath: string;
+  /** Video duration in seconds */
+  durationSec: number;
+  /** Frames per second */
+  fps: FpsOption;
+  /** Render width in pixels */
+  width: number;
+  /** Render height in pixels */
+  height: number;
+  /** Export format */
+  format: ExportFormat;
+  /** Bitrate in kbps */
+  bitrateKbps: number;
+  /** Rate control mode: CBR (constant) vs VBR (variable) */
+  rateControl?: RateControl;
+  /** Compute mode: CPU (software) vs GPU (hardware acceleration) */
+  computeMode?: ComputeMode;
+  /** Whether green screen is enabled (solid green bg) or disabled (transparent alpha) */
+  greenScreen?: boolean;
+  /** PRNG seed for deterministic rendering */
+  seed: number;
+}
+
+/** Result of starting a render job */
+export interface RenderStartResult {
+  success: boolean;
+  jobId?: string;
+  error?: string;
+}
+
+/** Progress update emitted during rendering */
+export interface RenderProgress {
+  jobId: string;
+  currentFrame: number;
+  totalFrames: number;
+  percent: number;
+  phase: 'rendering' | 'encoding' | 'finalizing';
+  elapsedMs: number;
+  estimatedRemainingMs?: number;
+  usedEncoder?: string;
+  computeModeUsed?: ComputeMode;
+  fallbackWarning?: string;
+}
+
+/** Result emitted when render completes */
+export interface RenderCompleteResult {
+  jobId: string;
+  outputPath: string;
+  durationSec: number;
+  totalFrames: number;
+  fileSizeBytes: number;
+  elapsedMs: number;
+  usedEncoder?: string;
+  computeModeUsed?: ComputeMode;
+  hasAlpha?: boolean;
+  fallbackWarning?: string;
+}
+
+/** Error result emitted on render failure */
+export interface RenderErrorResult {
+  jobId: string;
+  error: string;
+  phase: string;
+  currentFrame?: number;
+  totalFrames?: number;
+}
 
 /** Compute mode for rendering */
 export type ComputeMode = 'cpu' | 'gpu';
@@ -153,6 +256,14 @@ export interface ElectronAPI {
   // AI Architect Generation
   generateText: (request: GenerateTextRequest) => Promise<GenerateTextResult>;
   getGenerations: (limit?: number) => Promise<GenerationRecord[]>;
+  // Render Pipeline (E8)
+  startRender: (params: RenderStartParams) => Promise<RenderStartResult>;
+  cancelRender: (jobId: string) => Promise<void>;
+  selectOutputFolder: () => Promise<string | null>;
+  getGpuInfo: () => Promise<GpuDeviceInfo>;
+  onRenderProgress: (callback: (progress: RenderProgress) => void) => () => void;
+  onRenderComplete: (callback: (result: RenderCompleteResult) => void) => () => void;
+  onRenderError: (callback: (error: RenderErrorResult) => void) => () => void;
 }
 
 declare global {

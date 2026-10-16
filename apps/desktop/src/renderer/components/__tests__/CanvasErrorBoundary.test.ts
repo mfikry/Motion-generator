@@ -55,4 +55,21 @@ describe('CanvasErrorBoundary (@genc/desktop/components/CanvasErrorBoundary)', (
     // Verify it returned a React element for the error fallback
     expect(React.isValidElement(rendered)).toBe(true);
   });
+
+  it('renders compact error banner when compact prop is true', () => {
+    const boundary = new CanvasErrorBoundary({
+      children: 'Child',
+      compact: true,
+      title: 'Panel Error',
+      description: 'Detail error description',
+    });
+    boundary.state = {
+      hasError: true,
+      error: new Error('TypeError: Cannot read properties of undefined'),
+    };
+
+    const rendered = boundary.render();
+    expect(rendered).toBeDefined();
+    expect(React.isValidElement(rendered)).toBe(true);
+  });
 });

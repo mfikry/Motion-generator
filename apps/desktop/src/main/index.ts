@@ -3,6 +3,7 @@ import path from 'node:path';
 import { initDatabase, closeDatabase } from './storage/database';
 import { registerApiKeyHandlers } from './ipc/api-key-handlers';
 import { registerAiHandlers } from './ipc/ai-handlers';
+import { registerRenderHandlers } from './ipc/render-handlers';
 
 const isDev = !app.isPackaged;
 
@@ -55,6 +56,7 @@ app.whenReady().then(() => {
   // Register IPC handlers
   registerApiKeyHandlers();
   registerAiHandlers();
+  registerRenderHandlers();
 
   createWindow();
 });

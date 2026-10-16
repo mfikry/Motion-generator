@@ -6,7 +6,9 @@ import { NeuralEngine } from './components/NeuralEngine';
 import { RenderSettingsPanel } from './components/RenderSettingsPanel';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { SandboxPlaygroundModal } from './components/SandboxPlaygroundModal';
+import { CanvasErrorBoundary } from './components/CanvasErrorBoundary';
 import { useGenerationStore } from './store/generationStore';
+import { useRenderJobStore } from './store/renderJobStore';
 import { SPIRAL_GALAXY_CODE } from './fixtures/demo-spiral';
 import type { MotionBlueprint } from '@genc/shared-types';
 
@@ -138,7 +140,14 @@ export function App() {
           <div className="flex-1 min-h-0">
             <PreviewSuite />
           </div>
-          <NeuralEngine />
+          <CanvasErrorBoundary
+            compact={true}
+            title="Panel Neural Engine Mengalami Error"
+            description="Terjadi kesalahan pada kontrol pengaturan render. Klik tombol untuk mereset panel."
+            onReset={() => useRenderJobStore.getState().reset()}
+          >
+            <NeuralEngine />
+          </CanvasErrorBoundary>
         </div>
 
         {/* Right Column — Render Settings */}

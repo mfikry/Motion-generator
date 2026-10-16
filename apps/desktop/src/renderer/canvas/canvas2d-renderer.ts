@@ -282,7 +282,12 @@ export class Canvas2DPreviewRenderer {
         t,
         width,
         height,
-        opts: { seed: this.options.seed ?? 1337 },
+        opts: {
+          seed: this.options.seed ?? 1337,
+          greenScreen: this.options.greenScreen ?? false,
+          hasAlpha: true,
+          transparent: !(this.options.greenScreen ?? false),
+        },
         timeoutMs: 300,
       });
 

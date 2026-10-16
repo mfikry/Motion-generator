@@ -219,8 +219,94 @@ export function processWorkerExecution(
     // Clear canvas before drawing
     ctx.clearRect(0, 0, width, height);
 
-    // Execute sandboxed drawFrame
-    executeSandboxedCode(ctx, code, t, width, height, opts);
+    const safeOpts = (opts || {}) as Record<string, unknown>;
+    const isGreenScreen = safeOpts.greenScreen === true;
+    const isTransparent = safeOpts.transparent === true || (!isGreenScreen && safeOpts.hasAlpha === true);
+    // Explicit hasAlpha: false (e.g. from render-pipeline for MP4) signals a non-alpha export format
+    const shouldCompositeSolidBg = safeOpts.hasAlpha === false && !isGreenScreen;
+
+    if (isGreenScreen) {
+      ctx.fillStyle = '#00B140';
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    const origClearRect = ctx.clearRect;
+    const origFillRect = ctx.fillRect;
+    let bgHandled = false;
+
+    if (isGreenScreen) {
+      // 1. Intercept clearRect so scripts with ctx.clearRect() do not erase the green screen
+      ctx.clearRect = function (x: number, y: number, w: number, h: number) {
+        if (x <= 0 && y <= 0 && w >= width && h >= height) {
+          const prevFill = ctx.fillStyle;
+          ctx.fillStyle = '#00B140';
+          origFillRect.call(this, 0, 0, width, height);
+          ctx.fillStyle = prevFill;
+          return;
+        }
+        return origClearRect.call(this, x, y, w, h);
+      };
+
+      // 2. Intercept fillRect so any background fill in the script is forced to #00B140
+      ctx.fillRect = function (x: number, y: number, w: number, h: number) {
+        if (x <= 0 && y <= 0 && w >= width && h >= height) {
+          const prevFill = ctx.fillStyle;
+          ctx.fillStyle = '#00B140';
+          origFillRect.call(this, 0, 0, width, height);
+          ctx.fillStyle = prevFill;
+          return;
+        }
+        return origFillRect.call(this, x, y, w, h);
+      };
+    } else if (isTransparent) {
+      // Intercept fillRect so opaque background fills in scripts are skipped in transparent mode
+      ctx.fillRect = function (x: number, y: number, w: number, h: number) {
+        if (!bgHandled && x <= 0 && y <= 0 && w >= width && h >= height) {
+          bgHandled = true;
+          // Skip full-canvas solid background rect to preserve alpha channel transparency
+          return;
+        }
+        return origFillRect.call(this, x, y, w, h);
+      };
+    }
+
+    try {
+      // Execute sandboxed drawFrame
+      executeSandboxedCode(ctx, code, t, width, height, opts);
+    } finally {
+      ctx.clearRect = origClearRect;
+      ctx.fillRect = origFillRect;
+    }
+
+    // Post-execution background guarantee and compositing:
+    if (isGreenScreen) {
+      // Guarantee solid green screen #00B140 behind all elements
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.filter = 'none';
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#00B140';
+      origFillRect.call(ctx, 0, 0, width, height);
+      ctx.restore();
+    } else if (shouldCompositeSolidBg) {
+      // For non-alpha formats (e.g. MP4 H.264 yuv420p), composite over solid background
+      // so FFmpeg swscale does not discard alpha falloff (shadowBlur/glow) into solid opaque neon bands.
+      const bgColor =
+        typeof safeOpts.backgroundColor === 'string' && safeOpts.backgroundColor
+          ? safeOpts.backgroundColor
+          : '#000000';
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.filter = 'none';
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = bgColor;
+      origFillRect.call(ctx, 0, 0, width, height);
+      ctx.restore();
+    }
 
     const executionTimeMs = performance.now() - startTime;
 

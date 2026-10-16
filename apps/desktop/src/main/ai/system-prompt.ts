@@ -57,7 +57,10 @@ CRITICAL ARCHITECTURE RULES & CONSTRAINTS:
      ${
        greenScreen
          ? `* Green screen is ENABLED: ctx.fillStyle = '#00B140'; ctx.fillRect(0, 0, width, height);`
-         : `* If transparent, use ctx.clearRect(0, 0, width, height); or fill with theme background: ctx.fillStyle = '${bg}'; ctx.fillRect(0, 0, width, height);`
+         : `* Green screen is DISABLED (TRANSPARENT BACKGROUND / ALPHA CHANNEL):
+            Do NOT draw any opaque background rectangle over the full canvas!
+            Use "ctx.clearRect(0, 0, width, height);" only.
+            The canvas background must remain transparent (alpha = 0) so elements float on a transparent background for ProRes 4444 / WebM alpha channel export.`
      }
 
 5. RESPONSIVE COMPOSITION & MANDATORY PROPORTIONAL SIZING (${aspectRatio} Aspect Ratio):

@@ -2,6 +2,9 @@ import React, { Component, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
+  title?: string;
+  description?: string;
+  compact?: boolean;
   onReset?: () => void;
   resetKey?: unknown;
 }
@@ -15,8 +18,8 @@ interface State {
  * CanvasErrorBoundary
  *
  * Catches JavaScript / PixiJS runtime errors during canvas rendering
- * and displays an isolated error card in the preview panel, preventing
- * the entire React tree from unmounting into a blank screen.
+ * and panel rendering (e.g. Neural Engine), displaying an isolated
+ * error card and preventing the entire React tree from unmounting into a blank screen.
  */
 export class CanvasErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -29,7 +32,7 @@ export class CanvasErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error('CanvasErrorBoundary caught an error in canvas renderer:', error, errorInfo);
+    console.error('CanvasErrorBoundary caught an error in rendered component:', error, errorInfo);
   }
 
   handleReset = (): void => {
@@ -39,6 +42,31 @@ export class CanvasErrorBoundary extends Component<Props, State> {
 
   render(): ReactNode {
     if (this.state.hasError) {
+      if (this.props.compact) {
+        return (
+          <div className="w-full px-4 py-3 bg-[var(--color-bg-surface)] border-t border-rose-500/30 flex items-center justify-between gap-3 text-left">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-lg text-rose-400">⚠️</span>
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-rose-300 truncate">
+                  {this.props.title || 'Komponen Mengalami Error'}
+                </div>
+                <div className="text-[10px] text-[var(--color-text-muted)] truncate font-mono">
+                  {this.state.error?.name}: {this.state.error?.message || 'Unknown runtime error'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={this.handleReset}
+              className="chip active text-[10px] py-1 px-3 bg-rose-600/30 border-rose-500/50 text-rose-200 hover:bg-rose-600/50 cursor-pointer flex-shrink-0"
+            >
+              ↻ Reset Panel
+            </button>
+          </div>
+        );
+      }
+
       return (
         <div className="relative w-full h-full min-h-[280px] flex flex-col items-center justify-center p-6 bg-[var(--color-bg-surface)] text-center">
           <div className="glass-card max-w-lg w-full p-6 border border-rose-500/30 bg-rose-950/20 rounded-xl shadow-2xl flex flex-col items-center gap-3">
@@ -50,10 +78,10 @@ export class CanvasErrorBoundary extends Component<Props, State> {
             {/* Error Title */}
             <div>
               <h4 className="text-base font-bold text-white m-0 font-[var(--font-display)]">
-                Gagal Me-render Preview
+                {this.props.title || 'Gagal Me-render Preview'}
               </h4>
               <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-0">
-                Terjadi kesalahan runtime saat mengeksekusi kode Canvas2D / engine render.
+                {this.props.description || 'Terjadi kesalahan runtime saat mengeksekusi kode Canvas2D / engine render.'}
               </p>
             </div>
 

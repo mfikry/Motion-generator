@@ -36,3 +36,12 @@ npm-debug.log*
 
 # Coverage
 coverage/
+
+# Vendor binaries (FFmpeg LGPL, downloaded at setup)
+apps/desktop/vendor/
+
+# Scratch/temp files
+scratch/
+
+# Rendered output
+output/

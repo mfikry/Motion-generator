@@ -6,6 +6,7 @@ import { useGenerationStore } from './store/generationStore';
 
 import { SandboxedCodeExecutor } from './sandbox/sandboxed-code-executor';
 import { validateCodeWithDryRun } from './sandbox/pixel-loop-validator';
+import { initRenderJobListeners } from './store/renderJobStore';
 
 // Setup sandboxed dry-run validator for IPC code validation from AI Architect
 const dryRunExecutor = new SandboxedCodeExecutor({ defaultTimeoutMs: 50 });
@@ -13,6 +14,9 @@ dryRunExecutor.warmup();
 window.__sandboxedValidator = {
   validate: (code: string) => validateCodeWithDryRun(dryRunExecutor, code),
 };
+
+// Initialize render pipeline event listeners (E8)
+initRenderJobListeners();
 
 import { SPIRAL_GALAXY_CODE } from './fixtures/demo-spiral';
 
